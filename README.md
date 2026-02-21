@@ -1,6 +1,5 @@
-Certamente! Una buona descrizione su GitHub (il file README.md) è fondamentale per presentare il tuo progetto in modo professionale. Ho preparato una bozza che valorizza tutte le funzionalità dei programmi che hai incluso nella suite.
+🛠️ Python Utility Suite
 
-🛠️ Python Utility Suite 2026
 Una collezione completa di strumenti di utilità sviluppati in Python con interfaccia grafica PyQt6, progettata per semplificare la gestione quotidiana di immagini e documenti PDF.
 
 👤 Autore e Versione
