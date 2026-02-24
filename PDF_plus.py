@@ -6,8 +6,6 @@ from PyQt6.QtWidgets import (QApplication, QWidget, QVBoxLayout, QHBoxLayout,
 from PyQt6.QtCore import QThread, pyqtSignal, Qt
 from PyPDF2 import PdfReader, PdfWriter
 
-
-# --- THREAD PER L'UNIONE ---
 class MergeWorker(QThread):
     finished = pyqtSignal(int)
     error = pyqtSignal(str)
@@ -15,191 +13,89 @@ class MergeWorker(QThread):
 
     def __init__(self, file_list, dest_path):
         super().__init__()
-        self.file_list = file_list
-        self.dest_path = dest_path
+        self.file_list, self.dest_path = file_list, dest_path
 
     def run(self):
         try:
-            if not self.file_list:
-                self.error.emit("Nessun file selezionato.")
-                return
-
-            max_size_bytes = 99 * 1024 * 1024  # Limite 99 MB
-            output_file_counter = 1
-            current_merger = PdfWriter()
-            current_size = 0
-            final_files_count = 0
-
-            # Trova il primo nome disponibile
-            while os.path.exists(os.path.join(self.dest_path, f"{output_file_counter:02d} - Main.pdf")):
-                output_file_counter += 1
-
+            max_size, current_size, counter, merger, count = 99 * 1024 * 1024, 0, 1, PdfWriter(), 0
+            while os.path.exists(os.path.join(self.dest_path, f"{counter:02d} - Main.pdf")): counter += 1
             for path in self.file_list:
                 self.progress.emit(f"Unendo: {os.path.basename(path)}")
-                reader = PdfReader(path)
-                file_size = os.path.getsize(path)
+                reader, size = PdfReader(path), os.path.getsize(path)
+                if current_size + size > max_size and len(merger.pages) > 0:
+                    with open(os.path.join(self.dest_path, f"{counter:02d} - Main.pdf"), "wb") as f: merger.write(f)
+                    counter += 1; count += 1; merger = PdfWriter(); current_size = 0
+                for page in reader.pages: merger.add_page(page)
+                current_size += size
+            if len(merger.pages) > 0:
+                with open(os.path.join(self.dest_path, f"{counter:02d} - Main.pdf"), "wb") as f: merger.write(f)
+                count += 1
+            self.finished.emit(count)
+        except Exception as e: self.error.emit(str(e))
 
-                # Controllo dimensione per split 99MB
-                if current_size + file_size > max_size_bytes and len(current_merger.pages) > 0:
-                    out_name = os.path.join(self.dest_path, f"{output_file_counter:02d} - Main.pdf")
-                    with open(out_name, "wb") as f:
-                        current_merger.write(f)
-                    output_file_counter += 1
-                    final_files_count += 1
-                    current_merger = PdfWriter()
-                    current_size = 0
-
-                for page in reader.pages:
-                    current_merger.add_page(page)
-                current_size += file_size
-
-            # Salvataggio finale
-            if len(current_merger.pages) > 0:
-                out_name = os.path.join(self.dest_path, f"{output_file_counter:02d} - Main.pdf")
-                with open(out_name, "wb") as f:
-                    current_merger.write(f)
-                final_files_count += 1
-
-            self.finished.emit(final_files_count)
-        except Exception as e:
-            self.error.emit(str(e))
-
-
-# --- INTERFACCIA ---
 class PDFPlusPro(QWidget):
     def __init__(self):
         super().__init__()
-        self.selected_files = []  # Lista che contiene i percorsi dei file
+        self.selected_files = []
         self.initUI()
 
     def initUI(self):
+        # --- LOGICA DIMENSIONI E CENTRATURA ---
+        screen = QApplication.primaryScreen().availableGeometry()
+        width = int(screen.width() * 0.20)
+        height = int(screen.height() * 0.40)
+        min_w, min_h = 400, 500
+        self.setMinimumSize(min_w, min_h)
+        self.resize(max(width, min_w), max(height, min_h))
+        qr = self.frameGeometry()
+        qr.moveCenter(screen.center())
+        self.move(qr.topLeft())
+
         self.setWindowTitle('PDF Plus')
-        self.setFixedSize(550, 450)
         self.setStyleSheet("""
             QWidget { background-color: #1e1e1e; color: #e0e0e0; font-family: 'Segoe UI'; }
             QPushButton { background-color: #0078d4; border-radius: 4px; padding: 8px; font-weight: bold; }
-            QPushButton:hover { background-color: #1e90ff; }
             QPushButton#resetBtn { background-color: #555; }
             QPushButton#exitBtn { background-color: #c62828; }
             QProgressBar { border: 1px solid #444; border-radius: 5px; text-align: center; }
             QProgressBar::chunk { background-color: #00c853; }
         """)
-
         layout = QVBoxLayout()
-        layout.setContentsMargins(25, 25, 25, 25)
-        layout.setSpacing(15)
-
-        # Selezione Input
-        layout.addWidget(QLabel("1. Aggiungi i file PDF:"))
         input_btns = QHBoxLayout()
-
-        btn_add_files = QPushButton("📄 Seleziona File")
-        btn_add_files.clicked.connect(self.add_files)
-
-        btn_add_folder = QPushButton("📂 Intera Cartella")
-        btn_add_folder.clicked.connect(self.add_folder)
-
-        btn_reset = QPushButton("🗑️ Reset")
-        btn_reset.setObjectName("resetBtn")
-        btn_reset.clicked.connect(self.reset_list)
-
-        input_btns.addWidget(btn_add_files)
-        input_btns.addWidget(btn_add_folder)
-        input_btns.addWidget(btn_reset)
+        btn_add = QPushButton("📄 File"); btn_add.clicked.connect(self.add_files)
+        btn_fold = QPushButton("📂 Cartella"); btn_fold.clicked.connect(self.add_folder)
+        btn_res = QPushButton("🗑️ Reset"); btn_res.setObjectName("resetBtn"); btn_res.clicked.connect(self.reset_list)
+        input_btns.addWidget(btn_add); input_btns.addWidget(btn_fold); input_btns.addWidget(btn_res)
         layout.addLayout(input_btns)
-
-        # Riepilogo file
         self.info_label = QLabel("Nessun file selezionato")
-        self.info_label.setStyleSheet("color: #00c853; font-weight: bold;")
         layout.addWidget(self.info_label)
-
-        # Destinazione
-        layout.addWidget(QLabel("2. Cartella di destinazione:"))
-        dst_lay = QHBoxLayout()
-        self.dst_edit = QLineEdit()
-        btn_dst = QPushButton("Sfoglia")
-        btn_dst.clicked.connect(self.select_dest)
-        dst_lay.addWidget(self.dst_edit)
-        dst_lay.addWidget(btn_dst)
-        layout.addLayout(dst_lay)
-
-        # Progresso
-        self.status_label = QLabel("In attesa...")
-        layout.addWidget(self.status_label)
-        self.pbar = QProgressBar()
-        layout.addWidget(self.pbar)
-
-        # Azioni Finali
-        btn_lay = QHBoxLayout()
-        self.btn_run = QPushButton("🚀 UNISCI")
-        self.btn_run.setFixedHeight(45)
-        self.btn_run.clicked.connect(self.start_merge)
-
-        btn_exit = QPushButton("Esci")
-        btn_exit.setObjectName("exitBtn")
-        btn_exit.setFixedHeight(45)
-        btn_exit.clicked.connect(self.close)
-
-        btn_lay.addWidget(self.btn_run)
-        btn_lay.addWidget(btn_exit)
-        layout.addLayout(btn_lay)
-
+        dst_lay = QHBoxLayout(); self.dst_edit = QLineEdit(); btn_dst = QPushButton("Sfoglia"); btn_dst.clicked.connect(self.select_dest)
+        dst_lay.addWidget(self.dst_edit); dst_lay.addWidget(btn_dst); layout.addLayout(dst_lay)
+        self.status_label = QLabel("In attesa..."); layout.addWidget(self.status_label)
+        self.pbar = QProgressBar(); layout.addWidget(self.pbar)
+        btn_lay = QHBoxLayout(); self.btn_run = QPushButton("🚀 UNISCI"); self.btn_run.clicked.connect(self.start_merge)
+        btn_exit = QPushButton("Esci"); btn_exit.setObjectName("exitBtn"); btn_exit.clicked.connect(self.close)
+        btn_lay.addWidget(self.btn_run); btn_lay.addWidget(btn_exit); layout.addLayout(btn_lay)
         self.setLayout(layout)
 
     def add_files(self):
-        files, _ = QFileDialog.getOpenFileNames(self, "Seleziona PDF", "", "PDF Files (*.pdf)")
-        if files:
-            self.selected_files.extend(files)
-            self.update_info()
-
+        f, _ = QFileDialog.getOpenFileNames(self, "Seleziona", "", "PDF (*.pdf)")
+        if f: self.selected_files.extend(f); self.update_info()
     def add_folder(self):
-        folder = QFileDialog.getExistingDirectory(self, "Seleziona Cartella")
-        if folder:
-            files = [os.path.join(folder, f) for f in os.listdir(folder) if f.lower().endswith('.pdf')]
-            self.selected_files.extend(files)
-            self.update_info()
-
-    def reset_list(self):
-        self.selected_files = []
-        self.update_info()
-        self.pbar.setValue(0)
-
-    def update_info(self):
-        count = len(self.selected_files)
-        self.info_label.setText(f"File in coda: {count}")
-
+        d = QFileDialog.getExistingDirectory(self, "Cartella")
+        if d: self.selected_files.extend([os.path.join(d, f) for f in os.listdir(d) if f.lower().endswith('.pdf')]); self.update_info()
+    def reset_list(self): self.selected_files = []; self.update_info(); self.pbar.setValue(0)
+    def update_info(self): self.info_label.setText(f"File in coda: {len(self.selected_files)}")
     def select_dest(self):
-        path = QFileDialog.getExistingDirectory(self, "Destinazione")
-        if path: self.dst_edit.setText(path)
-
+        p = QFileDialog.getExistingDirectory(self, "Destinazione")
+        if p: self.dst_edit.setText(p)
     def start_merge(self):
-        if not self.selected_files or not self.dst_edit.text():
-            QMessageBox.warning(self, "Mancano dati", "Seleziona i file e la cartella di destinazione!")
-            return
-
-        self.btn_run.setEnabled(False)
-        self.pbar.setRange(0, 0)
-
+        if not self.selected_files or not self.dst_edit.text(): return
+        self.btn_run.setEnabled(False); self.pbar.setRange(0, 0)
         self.worker = MergeWorker(self.selected_files, self.dst_edit.text())
-        self.worker.progress.connect(lambda msg: self.status_label.setText(msg))
-        self.worker.finished.connect(self.on_success)
-        self.worker.error.connect(self.on_error)
-        self.worker.start()
-
+        self.worker.progress.connect(self.status_label.setText); self.worker.finished.connect(self.on_success); self.worker.start()
     def on_success(self, count):
-        self.pbar.setRange(0, 100)
-        self.pbar.setValue(100)
-        QMessageBox.information(self, "Fatto!", f"Operazione conclusa.\nCreati {count} file PDF.")
-        self.btn_run.setEnabled(True)
-
-    def on_error(self, msg):
-        self.pbar.setRange(0, 100)
-        QMessageBox.critical(self, "Errore", msg)
-        self.btn_run.setEnabled(True)
-
+        self.pbar.setRange(0, 100); self.pbar.setValue(100); QMessageBox.information(self, "Fatto!", f"Creati {count} PDF."); self.btn_run.setEnabled(True)
 
 if __name__ == '__main__':
-    app = QApplication(sys.argv)
-    ex = PDFPlusPro()
-    ex.show()
-    sys.exit(app.exec())
+    app = QApplication(sys.argv); ex = PDFPlusPro(); ex.show(); sys.exit(app.exec())
