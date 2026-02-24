@@ -23,13 +23,11 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
 
-    - name: Creazione EXE Unico
+    - name: Creazione EXE Unico (Unione 5 file)
       run: |
-        pyinstaller --noconsole --onefile --name "PyUtilitySuite_Completa" --collect-all pdf2docx --hidden-import ConvImage --hidden-import Find_Document --hidden-import PDF_plus --hidden-import PDFtoWord MainSuite.py
-      # Spiegazione dei parametri:
-      # --onefile: Questo è il comando che "unisce" fisicamente i 5 file in uno solo
-      # --hidden-import: Forza l'inclusione dei tuoi moduli se PyInstaller avesse dubbi
-      # MainSuite.py: Il file principale che lancia l'interfaccia
+        pyinstaller --noconsole --onefile --name "PyUtilitySuite_Completa" --collect-all pdf2docx --add-data "ConvImage.py;." --add-data "Find_Document.py;." --add-data "PDF_plus.py;." --add-data "PDFtoWord.py;." MainSuite.py
+      # --onefile: Forza l'unione di tutto in un solo .exe
+      # --add-data: Assicura che i file Python secondari siano inclusi nel pacchetto
 
     - name: Caricamento Eseguibile
       uses: actions/upload-artifact@v4
