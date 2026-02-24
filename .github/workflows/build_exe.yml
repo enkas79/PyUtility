@@ -25,7 +25,7 @@ jobs:
 
     - name: Creazione EXE Unico (Unione 5 file)
       run: |
-        pyinstaller --noconsole --onefile --name "PyUtilitySuite_Completa" --collect-all pdf2docx --add-data "ConvImage.py;." --add-data "Find_Document.py;." --add-data "PDF_plus.py;." --add-data "PDFtoWord.py;." MainSuite.py
+        pyinstaller --noconsole --onefile --name "PyUtilitySuite" --collect-all pdf2docx --add-data "ConvImage.py;." --add-data "Find_Document.py;." --add-data "PDF_plus.py;." --add-data "PDFtoWord.py;." MainSuite.py
       # --onefile: Forza l'unione di tutto in un solo .exe
       # --add-data: Assicura che i file Python secondari siano inclusi nel pacchetto
 
