@@ -46,6 +46,12 @@ jobs:
 
     - name: Creazione script Inno Setup (.iss)
       run: |
+        # Controlla se l'icona esiste e prepara la riga di configurazione
+        $iconLine = ""
+        if (Test-Path "icon.ico") {
+            $iconLine = "SetupIconFile=icon.ico"
+         }
+          
         $issContent = @"
         [Setup]
         AppName=PyUtilitySuite
@@ -58,11 +64,11 @@ jobs:
         Compression=lzma2
         SolidCompression=yes
         PrivilegesRequired=admin
-        SetupIconFile=icon.ico
-
+        $iconLine
+          
         [Files]
         Source: "dist\PyUtilitySuite.exe"; DestDir: "{app}"; Flags: ignoreversion
-
+          
         [Icons]
         Name: "{group}\PyUtilitySuite"; Filename: "{app}\PyUtilitySuite.exe"
         Name: "{autodesktop}\PyUtilitySuite"; Filename: "{app}\PyUtilitySuite.exe"
