@@ -1,17 +1,33 @@
-name: Build Py Utility Suite EXE
+name: Build PyUtilitySuite (Windows & Linux)
 
 on:
   push:
     branches: [ main ]
+    paths:
+      - 'version.txt' # La pipeline parte solo se cambia la versione
   workflow_dispatch:
 
-jobs:
-  build:
-    runs-on: windows-latest
+permissions:
+  contents: write
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  # ==========================================
+  # JOB 1: WINDOWS (EXE + INSTALLER)
+  # ==========================================
+  build-windows:
+    runs-on: windows-latest
     steps:
     - name: Checkout del codice
       uses: actions/checkout@v4
+
+    - name: Leggi la versione da version.txt
+      shell: bash
+      run: |
+        VERSION=$(cat version.txt)
+        echo "VERSION=$VERSION" >> $GITHUB_ENV
 
     - name: Configurazione Python
       uses: actions/setup-python@v5
@@ -21,16 +37,125 @@ jobs:
     - name: Installazione dipendenze
       run: |
         python -m pip install --upgrade pip
-        pip install -r requirements.txt
+        pip install PyQt6 pdf2docx pyinstaller requests pandas
 
-    - name: Creazione EXE Unico (Unione 5 file)
+    - name: Creazione EXE Unico (PyInstaller)
+      # Manteniamo la logica --onefile e l'aggiunta dei 5 file di PyUtilitySuite
       run: |
-        pyinstaller --noconsole --onefile --name "PyUtilitySuite" --collect-all pdf2docx --add-data "ConvImage.py;." --add-data "Find_Document.py;." --add-data "PDF_plus.py;." --add-data "PDFtoWord.py;." MainSuite.py
-      # --onefile: Forza l'unione di tutto in un solo .exe
-      # --add-data: Assicura che i file Python secondari siano inclusi nel pacchetto
+        pyinstaller --noconsole --onefile --name "PyUtilitySuite" --collect-all pdf2docx --add-data "ConvImage.py;." --add-data "Find_Document.py;." --add-data "PDF_plus.py;." --add-data "PDFtoWord.py;." --add-data "version.txt;." --icon "icon.ico" MainSuite.py
 
-    - name: Caricamento Eseguibile
-      uses: actions/upload-artifact@v4
+    - name: Creazione script Inno Setup (.iss)
+      run: |
+        $issContent = @"
+        [Setup]
+        AppName=PyUtilitySuite
+        AppVersion=$env:VERSION
+        AppPublisher=Enrico Martini
+        DefaultDirName={autopf}\PyUtilitySuite
+        DefaultGroupName=PyUtilitySuite
+        OutputDir=Output_Installer
+        OutputBaseFilename=PyUtilitySuite_Setup_v$env:VERSION
+        Compression=lzma2
+        SolidCompression=yes
+        PrivilegesRequired=admin
+        SetupIconFile=icon.ico
+
+        [Files]
+        Source: "dist\PyUtilitySuite.exe"; DestDir: "{app}"; Flags: ignoreversion
+
+        [Icons]
+        Name: "{group}\PyUtilitySuite"; Filename: "{app}\PyUtilitySuite.exe"
+        Name: "{autodesktop}\PyUtilitySuite"; Filename: "{app}\PyUtilitySuite.exe"
+        "@
+        Set-Content -Path "setup_config.iss" -Value $issContent
+
+    - name: Compilazione Installer (Inno Setup)
+      run: |
+        & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" setup_config.iss
+
+    - name: Pubblica la Release su GitHub (Windows)
+      uses: softprops/action-gh-release@v2
       with:
-        name: PyUtilitySuite-Completa
-        path: dist/PyUtilitySuite.exe
+        tag_name: v${{ env.VERSION }}
+        name: PyUtilitySuite v${{ env.VERSION }}
+        body: "Aggiornamento automatico della suite di utility."
+        files: |
+          dist/PyUtilitySuite.exe
+          Output_Installer/PyUtilitySuite_Setup_v${{ env.VERSION }}.exe
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ==========================================
+  # JOB 2: LINUX (DEB PACKAGE)
+  # ==========================================
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout del codice
+      uses: actions/checkout@v4
+
+    - name: Leggi la versione da version.txt
+      shell: bash
+      run: |
+        VERSION=$(cat version.txt)
+        echo "VERSION=$VERSION" >> $GITHUB_ENV
+
+    - name: Installazione dipendenze sistema
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y imagemagick dpkg-dev
+
+    - name: Configurazione Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+
+    - name: Installazione dipendenze Python
+      run: |
+        python -m pip install --upgrade pip
+        pip install PyQt6 pdf2docx pyinstaller requests pandas
+
+    - name: Creazione Eseguibile Linux (PyInstaller)
+      run: |
+        pyinstaller --noconsole --onefile --name "PyUtilitySuite" --collect-all pdf2docx --add-data "ConvImage.py:." --add-data "Find_Document.py:." --add-data "PDF_plus.py:." --add-data "PDFtoWord.py:." --add-data "version.txt:." MainSuite.py
+
+    - name: Impacchettamento Debian (.deb)
+      run: |
+        VERSION=${{ env.VERSION }}
+        DEB_DIR="PyUtilitySuite_v${VERSION}_amd64"
+        mkdir -p $DEB_DIR/DEBIAN
+        mkdir -p $DEB_DIR/opt/PyUtilitySuite
+        mkdir -p $DEB_DIR/usr/share/applications
+
+        cp dist/PyUtilitySuite $DEB_DIR/opt/PyUtilitySuite/
+        chmod +x $DEB_DIR/opt/PyUtilitySuite/PyUtilitySuite
+
+        cat <<EOF > $DEB_DIR/DEBIAN/control
+        Package: pyutility-suite
+        Version: ${VERSION}
+        Section: utils
+        Priority: optional
+        Architecture: amd64
+        Maintainer: Enrico Martini
+        Description: Suite di utility per PDF, immagini e documenti.
+        EOF
+
+        cat <<EOF > $DEB_DIR/usr/share/applications/pyutility.desktop
+        [Desktop Entry]
+        Version=${VERSION}
+        Name=PyUtilitySuite
+        Exec=/opt/PyUtilitySuite/PyUtilitySuite
+        Terminal=false
+        Type=Application
+        Categories=Utility;
+        EOF
+
+        dpkg-deb --build $DEB_DIR
+
+    - name: Pubblica la Release su GitHub (Linux)
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: v${{ env.VERSION }}
+        files: PyUtilitySuite_v${{ env.VERSION }}_amd64.deb
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
