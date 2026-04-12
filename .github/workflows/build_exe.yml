@@ -42,7 +42,7 @@ jobs:
     - name: Creazione EXE Unico (PyInstaller)
       # Manteniamo la logica --onefile e l'aggiunta dei 5 file di PyUtilitySuite
       run: |
-        pyinstaller --noconsole --onefile --name "PyUtilitySuite" --collect-all pdf2docx --add-data "ConvImage.py;." --add-data "Find_Document.py;." --add-data "PDF_plus.py;." --add-data "PDFtoWord.py;." --add-data "version.txt;." --icon "icon.ico" MainSuite.py
+        pyinstaller --noconsole --onefile --name "PyUtilitySuite" --collect-all pdf2docx --add-data "ConvImage.py;." --add-data "Find_Document.py;." --add-data "PDF_plus.py;." --add-data "PDFtoWord.py;." --add-data "version.txt;." MainSuite.py
 
     - name: Creazione script Inno Setup (.iss)
       run: |
