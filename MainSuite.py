@@ -5,12 +5,13 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QAction
 
 # --- CONFIGURAZIONE DINAMICA ---
-VERSION = "1.0.0"
+VERSION = "1.1.0"
 AUTHOR = "Enrico Martini"
 
 # Import moduli esterni (Assicurati che i file siano nella stessa cartella)
 try:
     from ConvImage import ImageResizerApp
+    from MergeImage import ImageMergerApp
     from Find_Document import FileManagerApp
     from PDF_plus import PDFPlusPro
     from PDFtoWord import ModernConverter
@@ -19,19 +20,25 @@ except ImportError as e:
 
 
 class UtilitySuite(QMainWindow):
+    """
+    Finestra principale che fa da HUB per richiamare tutti i moduli della suite.
+    """
+
     def __init__(self):
         super().__init__()
 
         # Variabili per gestire le finestre figlie
         self.img_app = None
+        self.merge_app = None
         self.find_app = None
         self.pdf_plus_app = None
         self.pdf_word_app = None
 
-        self.initUI()
+        self.init_ui()
         self.create_menu()
 
-    def initUI(self):
+    def init_ui(self) -> None:
+        """Configura la geometria, il layout base e i pulsanti della dashboard."""
         # 1. Rilevamento Geometria Schermo
         screen = QApplication.primaryScreen().availableGeometry()
         screen_w = screen.width()
@@ -41,8 +48,8 @@ class UtilitySuite(QMainWindow):
         width = int(screen_w * 0.20)
         height = int(screen_h * 0.40)
 
-        # 3. Impostazione Limite Minimo (per non rendere il testo illeggibile)
-        min_w, min_h = 400, 500
+        # 3. Impostazione Limite Minimo
+        min_w, min_h = 400, 550
         self.setMinimumSize(min_w, min_h)
 
         # Applichiamo la dimensione calcolata (se maggiore del minimo)
@@ -105,6 +112,7 @@ class UtilitySuite(QMainWindow):
 
         # Bottoni Utility
         self.add_menu_button(layout, "🖼️ Image Converter/Resizer", self.open_image_app)
+        self.add_menu_button(layout, "🧩 Image Merger (Unisci Immagini)", self.open_merge_app)
         self.add_menu_button(layout, "🔍 Ricerca/Gestione Documenti", self.open_find_app)
         self.add_menu_button(layout, "📄 PDF Plus (Unione PDF)", self.open_pdf_plus)
         self.add_menu_button(layout, "📝 PDF to Word Converter", self.open_pdf_word)
@@ -117,14 +125,21 @@ class UtilitySuite(QMainWindow):
         btn_exit.clicked.connect(self.close)
         layout.addWidget(btn_exit)
 
-    def create_menu(self):
+    def create_menu(self) -> None:
+        """Crea la barra dei menu."""
         menubar = self.menuBar()
         info_menu = menubar.addMenu('&Info')
         about_action = QAction('Informazioni su...', self)
         about_action.triggered.connect(self.show_about_dialog)
         info_menu.addAction(about_action)
 
-    def show_about_dialog(self):
+        help_menu = menubar.addMenu('&Guida')
+        help_action = QAction('Aiuto Suite', self)
+        help_action.triggered.connect(self.show_help_dialog)
+        help_menu.addAction(help_action)
+
+    def show_about_dialog(self) -> None:
+        """Mostra la finestra di info (Autore e Versione)."""
         QMessageBox.about(
             self,
             "Info Suite",
@@ -134,25 +149,39 @@ class UtilitySuite(QMainWindow):
             f"Tutti i moduli sono aggiornati."
         )
 
-    def add_menu_button(self, layout, text, function):
+    def show_help_dialog(self) -> None:
+        """Mostra la finestra di guida all'uso."""
+        QMessageBox.information(
+            self,
+            "Guida Rapida",
+            "Scegli una delle utility dal menu centrale per aprire lo strumento dedicato.<br><br>"
+            "Tutti i processi pesanti sono eseguiti in background per non bloccare l'interfaccia."
+        )
+
+    def add_menu_button(self, layout: QVBoxLayout, text: str, function: callable) -> None:
+        """Aggiunge un pulsante al layout specificato agganciandolo a uno slot."""
         btn = QPushButton(text)
         btn.clicked.connect(function)
         layout.addWidget(btn)
 
-    # Funzioni di apertura applicazioni
-    def open_image_app(self):
+    # --- Funzioni di apertura applicazioni ---
+    def open_image_app(self) -> None:
         self.img_app = ImageResizerApp()
         self.img_app.show()
 
-    def open_find_app(self):
+    def open_merge_app(self) -> None:
+        self.merge_app = ImageMergerApp()
+        self.merge_app.show()
+
+    def open_find_app(self) -> None:
         self.find_app = FileManagerApp()
         self.find_app.show()
 
-    def open_pdf_plus(self):
+    def open_pdf_plus(self) -> None:
         self.pdf_plus_app = PDFPlusPro()
         self.pdf_plus_app.show()
 
-    def open_pdf_word(self):
+    def open_pdf_word(self) -> None:
         self.pdf_word_app = ModernConverter()
         self.pdf_word_app.show()
 
