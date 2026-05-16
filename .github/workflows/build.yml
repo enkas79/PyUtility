@@ -40,9 +40,9 @@ jobs:
         pip install PyQt6 pdf2docx pyinstaller requests pandas
 
     - name: Creazione EXE Unico (PyInstaller)
-      # Manteniamo la logica --onefile e l'aggiunta dei 5 file di PyUtilitySuite
+      # AGGIORNATO: Inserito --add-data "MergeImage.py;." che mancava nella configurazione precedente
       run: |
-        pyinstaller --noconsole --onefile --name "PyUtilitySuite" --collect-all pdf2docx --add-data "ConvImage.py;." --add-data "Find_Document.py;." --add-data "PDF_plus.py;." --add-data "PDFtoWord.py;." --add-data "version.txt;." MainSuite.py
+        pyinstaller --noconsole --onefile --name "PyUtilitySuite" --collect-all pdf2docx --add-data "ConvImage.py;." --add-data "MergeImage.py;." --add-data "Find_Document.py;." --add-data "PDF_plus.py;." --add-data "PDFtoWord.py;." --add-data "version.txt;." MainSuite.py
 
     - name: Creazione script Inno Setup (.iss)
       run: |
@@ -122,8 +122,9 @@ jobs:
         pip install PyQt6 pdf2docx pyinstaller requests pandas
 
     - name: Creazione Eseguibile Linux (PyInstaller)
+      # AGGIORNATO: Inserito --add-data "MergeImage.py:." usando il separatore dei due punti nativo di Linux
       run: |
-        pyinstaller --noconsole --onefile --name "PyUtilitySuite" --collect-all pdf2docx --add-data "ConvImage.py:." --add-data "Find_Document.py:." --add-data "PDF_plus.py:." --add-data "PDFtoWord.py:." --add-data "version.txt:." MainSuite.py
+        pyinstaller --noconsole --onefile --name "PyUtilitySuite" --collect-all pdf2docx --add-data "ConvImage.py:." --add-data "MergeImage.py:." --add-data "Find_Document.py:." --add-data "PDF_plus.py:." --add-data "PDFtoWord.py:." --add-data "version.txt:." MainSuite.py
 
     - name: Impacchettamento Debian (.deb)
       run: |
