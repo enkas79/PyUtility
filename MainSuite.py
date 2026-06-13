@@ -6,8 +6,12 @@ from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, QUrl
 from PyQt6.QtGui import QAction, QDesktopServices
 
+# Import moduli di base
+from base_window import BaseWindow
+from styles import get_style
+
 # --- CONFIGURAZIONE DINAMICA ---
-VERSION = "1.1.0"
+VERSION = "1.2.0"
 AUTHOR = "Enrico Martini"
 REPO_OWNER = "enkas79"
 REPO_NAME = "PyUtility"
@@ -19,6 +23,8 @@ try:
     from Find_Document import FileManagerApp
     from PDF_plus import PDFPlusPro
     from PDFtoWord import ModernConverter
+    from PDF_Splitter import PDFSplitterApp
+    from Image_Watermark import WatermarkApp
 except ImportError as e:
     print(f"Errore caricamento moduli: {e}")
 
@@ -98,32 +104,7 @@ class UtilitySuite(QMainWindow):
         self.setWindowTitle(f'Py Utility Suite - v.{VERSION}')
 
         # --- STILE CSS ---
-        self.setStyleSheet("""
-            QMainWindow { background-color: #1e1e1e; }
-            QWidget#centralWidget { background-color: #1e1e1e; }
-            QLabel { color: white; font-family: 'Segoe UI'; }
-            QLabel#title { font-size: 24px; font-weight: bold; color: #0078d4; margin-bottom: 5px; }
-            QLabel#subtitle { font-size: 11px; color: #888; margin-bottom: 15px; }
-
-            QPushButton { 
-                background-color: #333; border: 1px solid #555; 
-                padding: 15px; border-radius: 8px; font-size: 14px; text-align: left;
-                color: white;
-            }
-            QPushButton:hover { background-color: #444; border-color: #0078d4; }
-
-            QPushButton#exitBtn { background-color: #d32f2f; text-align: center; margin-top: 10px; }
-            QPushButton#exitBtn:hover { background-color: #f44336; }
-
-            QMenuBar { background-color: #2d2d2d; color: white; }
-            QMenuBar::item:selected { background-color: #0078d4; }
-            QMenu { background-color: #2d2d2d; color: white; border: 1px solid #555; }
-            QMenu::item:selected { background-color: #0078d4; }
-
-            QMessageBox { background-color: #1e1e1e; }
-            QMessageBox QLabel { color: white; font-size: 13px; }
-            QMessageBox QPushButton { background-color: #0078d4; color: white; padding: 5px 20px; }
-        """)
+        self.setStyleSheet(get_style("main"))
 
         central_widget = QWidget()
         central_widget.setObjectName("centralWidget")
@@ -147,8 +128,10 @@ class UtilitySuite(QMainWindow):
         # Bottoni Utility
         self.add_menu_button(layout, "🖼️ Image Converter/Resizer", self.open_image_app)
         self.add_menu_button(layout, "🧩 Image Merger (Unisci Immagini)", self.open_merge_app)
+        self.add_menu_button(layout, "🎨 Image Watermark", self.open_watermark_app)
         self.add_menu_button(layout, "🔍 Ricerca/Gestione Documenti", self.open_find_app)
         self.add_menu_button(layout, "📄 PDF Plus (Unione PDF)", self.open_pdf_plus)
+        self.add_menu_button(layout, "✂️ PDF Splitter", self.open_pdf_splitter)
         self.add_menu_button(layout, "📝 PDF to Word Converter", self.open_pdf_word)
 
         layout.addStretch()
@@ -236,6 +219,10 @@ class UtilitySuite(QMainWindow):
         self.merge_app = ImageMergerApp()
         self.merge_app.show()
 
+    def open_watermark_app(self) -> None:
+        self.watermark_app = WatermarkApp()
+        self.watermark_app.show()
+
     def open_find_app(self) -> None:
         self.find_app = FileManagerApp()
         self.find_app.show()
@@ -243,6 +230,10 @@ class UtilitySuite(QMainWindow):
     def open_pdf_plus(self) -> None:
         self.pdf_plus_app = PDFPlusPro()
         self.pdf_plus_app.show()
+
+    def open_pdf_splitter(self) -> None:
+        self.pdf_splitter_app = PDFSplitterApp()
+        self.pdf_splitter_app.show()
 
     def open_pdf_word(self) -> None:
         self.pdf_word_app = ModernConverter()
