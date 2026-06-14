@@ -8,8 +8,8 @@ Fornisce funzionalità comuni come centratura, stile CSS, gestione errori e logg
 import os
 import logging
 from typing import Optional, List
-from PyQt6.QtWidgets import QWidget, QMessageBox, QVBoxLayout
-from PyQt6.QtCore import QApplication, Qt
+from PyQt6.QtWidgets import QWidget, QMessageBox, QVBoxLayout, QApplication
+from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont
 
 
