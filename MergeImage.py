@@ -1,11 +1,19 @@
+"""
+Image Merger Module
+===================
+Tool per unire più immagini in un'unica immagine (verticale o orizzontale).
+"""
+
 import sys
 import os
-from typing import List
+from typing import Optional, List, Tuple
 
-from PyQt6.QtWidgets import (QApplication, QWidget, QVBoxLayout, QHBoxLayout,
-                             QPushButton, QLabel, QFileDialog, QMessageBox,
-                             QProgressBar, QListWidget, QRadioButton, QButtonGroup,
-                             QAbstractItemView, QFrame)
+from PyQt6.QtWidgets import (
+    QApplication, QWidget, QVBoxLayout, QHBoxLayout,
+    QPushButton, QLabel, QFileDialog, QMessageBox,
+    QProgressBar, QListWidget, QRadioButton, QButtonGroup,
+    QAbstractItemView, QFrame
+)
 from PyQt6.QtCore import QThread, pyqtSignal, Qt
 from PIL import Image
 
@@ -14,12 +22,17 @@ class ImageMergeWorker(QThread):
     """
     Thread dedicato alla logica di business per unire le immagini.
     Mantiene la logica separata dalla UI per evitare blocchi dell'interfaccia.
+    
+    Attributes:
+        progress_signal (pyqtSignal): Segnale per aggiornare la barra di progresso.
+        finished_signal (pyqtSignal): Segnale emesso al completamento con il percorso del file generato.
+        error_signal (pyqtSignal): Segnale emesso in caso di errore.
     """
     progress_signal = pyqtSignal(int)
     finished_signal = pyqtSignal(str)
     error_signal = pyqtSignal(str)
 
-    def __init__(self, file_paths: List[str], output_path: str, is_vertical: bool):
+    def __init__(self, file_paths: List[str], output_path: str, is_vertical: bool) -> None:
         """
         Inizializza il worker per l'unione delle immagini.
 
@@ -29,34 +42,34 @@ class ImageMergeWorker(QThread):
             is_vertical (bool): True per unione verticale, False per orizzontale.
         """
         super().__init__()
-        self.file_paths = file_paths
-        self.output_path = output_path
-        self.is_vertical = is_vertical
+        self.file_paths: List[str] = file_paths
+        self.output_path: str = output_path
+        self.is_vertical: bool = is_vertical
 
     def run(self) -> None:
         """Esegue l'elaborazione e la fusione delle immagini."""
-        images = []
+        images: List[Image.Image] = []
         try:
             images = [Image.open(p) for p in self.file_paths]
             if not images:
                 raise ValueError("Nessuna immagine fornita per l'elaborazione.")
 
-            total_images = len(images)
+            total_images: int = len(images)
 
             if self.is_vertical:
-                max_width = max(img.width for img in images)
-                total_height = sum(img.height for img in images)
-                result = Image.new('RGB', (max_width, total_height), (255, 255, 255))
-                y_offset = 0
+                max_width: int = max(img.width for img in images)
+                total_height: int = sum(img.height for img in images)
+                result: Image.Image = Image.new('RGB', (max_width, total_height), (255, 255, 255))
+                y_offset: int = 0
                 for i, img in enumerate(images):
                     result.paste(img, (0, y_offset))
                     y_offset += img.height
                     self.progress_signal.emit(int(((i + 1) / total_images) * 100))
             else:
-                total_width = sum(img.width for img in images)
-                max_height = max(img.height for img in images)
+                total_width: int = sum(img.width for img in images)
+                max_height: int = max(img.height for img in images)
                 result = Image.new('RGB', (total_width, max_height), (255, 255, 255))
-                x_offset = 0
+                x_offset: int = 0
                 for i, img in enumerate(images):
                     result.paste(img, (x_offset, 0))
                     x_offset += img.width
@@ -76,11 +89,15 @@ class ImageMergeWorker(QThread):
 class ImageMergerApp(QWidget):
     """
     Interfaccia grafica (UI) per l'applicazione di unione delle immagini JPEG.
+    
+    Attributes:
+        file_list (List[str]): Lista dei percorsi delle immagini selezionate.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self.file_list: List[str] = []
+        self.worker: Optional[ImageMergeWorker] = None
         self.init_ui()
 
     def init_ui(self) -> None:
@@ -187,23 +204,29 @@ class ImageMergerApp(QWidget):
 
     def show_info(self) -> None:
         """Mostra la finestra di informazioni sull'applicazione."""
-        QMessageBox.about(self, "Info Applicazione",
-                          "<b>Image Merger</b><br>"
-                          "Versione: 1.1.0<br>"
-                          "Autore: Enrico Martini")
+        QMessageBox.about(
+            self, "Info Applicazione",
+            "<b>Image Merger</b><br>"
+            "Versione: 1.2.0<br>"
+            "Autore: Enrico Martini"
+        )
 
     def show_help(self) -> None:
         """Mostra la guida all'uso dell'applicazione."""
-        QMessageBox.information(self, "Guida",
-                                "<b>Come usare lo strumento:</b><ul>"
-                                "<li>Usa 'Aggiungi JPEG' per inserire i file.</li>"
-                                "<li>Trascina i file nella lista per riordinarli. L'ordine della lista sarà l'ordine finale.</li>"
-                                "<li>Scegli se incollare le immagini in Verticale o Orizzontale.</li>"
-                                "<li>Premi 'UNISCI IMMAGINI' e scegli dove salvare.</li></ul>")
+        QMessageBox.information(
+            self, "Guida",
+            "<b>Come usare lo strumento:</b><ul>"
+            "<li>Usa 'Aggiungi JPEG' per inserire i file.</li>"
+            "<li>Trascina i file nella lista per riordinarli. L'ordine della lista sarà l'ordine finale.</li>"
+            "<li>Scegli se incollare le immagini in Verticale o Orizzontale.</li>"
+            "<li>Premi 'UNISCI IMMAGINI' e scegli dove salvare.</li></ul>"
+        )
 
     def add_images(self) -> None:
         """Aggiunge nuove immagini alla lista e aggiorna la UI."""
-        files, _ = QFileDialog.getOpenFileNames(self, "Seleziona Immagini JPEG", "", "Images (*.jpg *.jpeg)")
+        files: List[str] = QFileDialog.getOpenFileNames(
+            self, "Seleziona Immagini JPEG", "", "Images (*.jpg *.jpeg)"
+        )[0]
         if files:
             for f in files:
                 if f not in self.file_list:
@@ -223,14 +246,16 @@ class ImageMergerApp(QWidget):
             QMessageBox.warning(self, "Attenzione", "Devi aggiungere almeno due immagini per unirle!")
             return
 
-        out_file, _ = QFileDialog.getSaveFileName(self, "Salva come", "ImmagineUnita.jpg", "JPEG (*.jpg)")
+        out_file: Optional[str] = QFileDialog.getSaveFileName(
+            self, "Salva come", "ImmagineUnita.jpg", "JPEG (*.jpg)"
+        )[0]
         if not out_file:
             return
 
         # Ricostruisco la lista in base all'ordine visuale nel QListWidget
-        ordered_files = []
+        ordered_files: List[str] = []
         for index in range(self.list_widget.count()):
-            item_name = self.list_widget.item(index).text()
+            item_name: str = self.list_widget.item(index).text()
             # Trovo il percorso completo corrispondente al nome del file
             for f_path in self.file_list:
                 if os.path.basename(f_path) == item_name:
@@ -249,15 +274,28 @@ class ImageMergerApp(QWidget):
         self.worker.start()
 
     def on_finished(self, out_path: str) -> None:
-        """Slot eseguito al termine positivo del processo."""
+        """
+        Slot eseguito al termine positivo del processo.
+        
+        Args:
+            out_path (str): Percorso del file generato.
+        """
         self.pbar.setValue(100)
         self.status_label.setText("Completato.")
         self.btn_merge.setEnabled(True)
         self.btn_add.setEnabled(True)
-        QMessageBox.information(self, "Successo", f"Immagini unite salvate con successo in:\n{out_path}")
+        QMessageBox.information(
+            self, "Successo", 
+            f"Immagini unite salvate con successo in:\n{out_path}"
+        )
 
     def on_error(self, error_msg: str) -> None:
-        """Slot eseguito in caso di eccezione lato logica."""
+        """
+        Slot eseguito in caso di eccezione lato logica.
+        
+        Args:
+            error_msg (str): Messaggio di errore.
+        """
         self.status_label.setText("Errore durante l'unione.")
         self.btn_merge.setEnabled(True)
         self.btn_add.setEnabled(True)
