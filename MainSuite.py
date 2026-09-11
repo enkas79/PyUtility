@@ -7,11 +7,11 @@ from PyQt6.QtCore import Qt, QThread, pyqtSignal, QUrl
 from PyQt6.QtGui import QAction, QDesktopServices
 
 # Import moduli di base
-from base_window import BaseWindow
+from base_window import BaseWindow, get_app_version
 from styles import get_style
 
 # --- CONFIGURAZIONE DINAMICA ---
-VERSION = "1.2.0"
+VERSION = get_app_version()
 AUTHOR = "Enrico Martini"
 REPO_OWNER = "enkas79"
 REPO_NAME = "PyUtility"
@@ -51,11 +51,25 @@ class UpdateWorker(QThread):
             with urllib.request.urlopen(req, timeout=5) as response:
                 if response.status == 200:
                     data = json.loads(response.read().decode())
-                    v = data.get('tag_name', '').replace('v', '')
-                    # Esegue il confronto delle versioni
-                    self.finished.emit(v > self.current_version, v)
-        except:
+                    v = data.get('tag_name', '').lstrip('v')
+                    # Confronto numerico (non lessicografico) delle versioni
+                    self.finished.emit(self._is_newer(v, self.current_version), v)
+        except (OSError, ValueError, json.JSONDecodeError):
             pass  # Continua silenziosamente in caso di assenza di rete
+
+    @staticmethod
+    def _is_newer(remote_version: str, local_version: str) -> bool:
+        """Confronta due versioni semantiche (es. '1.10.0' > '1.9.0')."""
+        def to_tuple(v: str) -> tuple:
+            parts = []
+            for p in v.split('.'):
+                try:
+                    parts.append(int(p))
+                except ValueError:
+                    parts.append(0)
+            return tuple(parts)
+
+        return to_tuple(remote_version) > to_tuple(local_version)
 
 
 # ==========================================

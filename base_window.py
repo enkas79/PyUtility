@@ -6,6 +6,7 @@ Fornisce funzionalità comuni come centratura, stile CSS, gestione errori e logg
 """
 
 import os
+import sys
 import logging
 from typing import Optional, List
 from PyQt6.QtWidgets import QWidget, QMessageBox, QVBoxLayout, QApplication
@@ -21,6 +22,27 @@ logging.basicConfig(
     encoding='utf-8'
 )
 logger = logging.getLogger(__name__)
+
+
+def get_app_version(default: str = "0.0.0") -> str:
+    """
+    Legge la versione corrente dell'applicazione dal file version.txt
+    nella root del progetto, come richiesto dalle linee guida (CLAUDE.md).
+
+    Args:
+        default (str): Valore restituito se version.txt non è leggibile.
+
+    Returns:
+        str: Numero di versione (es. "1.2.0").
+    """
+    base_dir = getattr(sys, '_MEIPASS', os.path.dirname(os.path.abspath(__file__)))
+    version_path = os.path.join(base_dir, 'version.txt')
+    try:
+        with open(version_path, 'r', encoding='utf-8') as f:
+            return f.read().strip()
+    except OSError:
+        logger.warning(f"Impossibile leggere version.txt, uso versione di default {default}")
+        return default
 
 
 class BaseWindow(QWidget):
