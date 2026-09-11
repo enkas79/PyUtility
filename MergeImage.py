@@ -17,6 +17,8 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import QThread, pyqtSignal, Qt
 from PIL import Image
 
+from base_window import get_app_version
+
 
 class ImageMergeWorker(QThread):
     """
@@ -207,7 +209,7 @@ class ImageMergerApp(QWidget):
         QMessageBox.about(
             self, "Info Applicazione",
             "<b>Image Merger</b><br>"
-            "Versione: 1.2.0<br>"
+            f"Versione: {get_app_version()}<br>"
             "Autore: Enrico Martini"
         )
 
