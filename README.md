@@ -4,7 +4,7 @@ Una collezione completa di strumenti di utilità sviluppati in Python con interf
 
 👤 **Autore e Versione**
 - **Autore:** Enrico Martini
-- **Versione Corrente:** 1.2.0
+- **Versione Corrente:** 1.3.0
 
 🚀 **Funzionalità Incluse**
 La suite integra **otto** strumenti principali, accessibili da un unico hub centrale:
@@ -30,17 +30,23 @@ La suite integra **otto** strumenti principali, accessibili da un unico hub cent
    - **Azioni Rapide:** Permette di copiare o spostare i file trovati verso una cartella di destinazione specifica direttamente dall'interfaccia.
    - **Multithreading:** La ricerca avviene in background per non bloccare l'interfaccia.
 
-5. 📄 **PDF Plus (Unione PDF)**
+5. 📋 **Lista File Cartella** *(Nuovo in v1.3.0)*
+   - **Elenco File:** Genera la lista dei file di una cartella (con o senza sottocartelle).
+   - **Filtro Estensione:** Una o più estensioni libere (es. `pdf, docx`) o preset (Documenti, Immagini, Audio/Video, Archivi).
+   - **Filtro Dimensione:** Dimensione minima e/o massima in B, KB, MB, GB.
+   - **Esportazione:** CSV (compatibile Excel), TXT o copia dei percorsi negli appunti; tabella ordinabile per nome, dimensione e data.
+
+6. 📄 **PDF Plus (Unione PDF)**
    - **Merge Intelligente:** Unisce più PDF in un unico file.
    - **Limite Dimensioni:** Include una logica di split automatico se il file risultante supera i 99MB.
    - **Importazione Facile:** Supporta l'aggiunta di singoli file o di intere cartelle.
 
-6. ✂️ **PDF Splitter** *(Nuovo in v1.2.0)*
+7. ✂️ **PDF Splitter** *(Nuovo in v1.2.0)*
    - **Pagine Singole:** Divide ogni pagina del PDF in un file separato.
    - **Intervallo di Pagine:** Estrae un intervallo specifico di pagine.
    - **N Pagine per File:** Divide il PDF in file con un numero personalizzabile di pagine.
 
-7. 📝 **PDF to Word Converter**
+8. 📝 **PDF to Word Converter**
    - **Conversione Fedele:** Trasforma i documenti .pdf in file .docx editabili.
    - **Interfaccia Semplificata:** Processo guidato "seleziona e converti" con feedback visivo immediato.
 
@@ -76,6 +82,12 @@ pip install PyQt6==6.6.1 Pillow==10.2.0 PyPDF2==3.0.1 pdf2docx==0.8.5 pyinstalle
    ```
 
 ---
+
+📝 **Novità nella Versione 1.3.0**
+- Nuovo tool **Lista File Cartella** con filtri per estensione e dimensione ed export CSV/TXT.
+- **Caricamento modulare dei tool**: un modulo con dipendenze mancanti non blocca più gli altri.
+- **Build CI**: aggiunte le dipendenze Pillow e PyPDF2 mancanti nel workflow.
+- **Test**: suite `pytest` in `tests/`.
 
 📝 **Novità nella Versione 1.2.0**
 - Aggiunti **2 nuovi tool**: PDF Splitter e Image Watermark.

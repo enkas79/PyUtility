@@ -37,12 +37,12 @@ jobs:
     - name: Installazione dipendenze
       run: |
         python -m pip install --upgrade pip
-        pip install PyQt6 pdf2docx pyinstaller requests pandas
+        pip install PyQt6 Pillow PyPDF2 pdf2docx pyinstaller
 
     - name: Creazione EXE Unico (PyInstaller)
-      # AGGIORNATO: Inserito --add-data "MergeImage.py;." che mancava nella configurazione precedente
+      # I tool sono caricati dinamicamente da MainSuite (importlib): vanno dichiarati con --hidden-import
       run: |
-        pyinstaller --noconsole --onefile --name "PyUtilitySuite" --collect-all pdf2docx --add-data "ConvImage.py;." --add-data "MergeImage.py;." --add-data "Find_Document.py;." --add-data "PDF_plus.py;." --add-data "PDFtoWord.py;." --add-data "version.txt;." MainSuite.py
+        pyinstaller --noconsole --onefile --name "PyUtilitySuite" --collect-all pdf2docx --hidden-import ConvImage --hidden-import MergeImage --hidden-import Image_Watermark --hidden-import Find_Document --hidden-import File_Lister --hidden-import PDF_plus --hidden-import PDF_Splitter --hidden-import PDFtoWord --add-data "version.txt;." MainSuite.py
 
     - name: Creazione script Inno Setup (.iss)
       run: |
@@ -119,12 +119,12 @@ jobs:
     - name: Installazione dipendenze Python
       run: |
         python -m pip install --upgrade pip
-        pip install PyQt6 pdf2docx pyinstaller requests pandas
+        pip install PyQt6 Pillow PyPDF2 pdf2docx pyinstaller
 
     - name: Creazione Eseguibile Linux (PyInstaller)
-      # AGGIORNATO: Inserito --add-data "MergeImage.py:." usando il separatore dei due punti nativo di Linux
+      # I tool sono caricati dinamicamente da MainSuite (importlib): vanno dichiarati con --hidden-import
       run: |
-        pyinstaller --noconsole --onefile --name "PyUtilitySuite" --collect-all pdf2docx --add-data "ConvImage.py:." --add-data "MergeImage.py:." --add-data "Find_Document.py:." --add-data "PDF_plus.py:." --add-data "PDFtoWord.py:." --add-data "version.txt:." MainSuite.py
+        pyinstaller --noconsole --onefile --name "PyUtilitySuite" --collect-all pdf2docx --hidden-import ConvImage --hidden-import MergeImage --hidden-import Image_Watermark --hidden-import Find_Document --hidden-import File_Lister --hidden-import PDF_plus --hidden-import PDF_Splitter --hidden-import PDFtoWord --add-data "version.txt:." MainSuite.py
 
     - name: Impacchettamento Debian (.deb)
       run: |
