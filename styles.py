@@ -126,16 +126,16 @@ ACTION_BUTTON_STYLE = """
     }
 """
 
-# Stile per input (QLineEdit, QComboBox, QSpinBox)
+# Stile per input (QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox)
 INPUT_STYLE = """
-    QLineEdit, QComboBox, QSpinBox { 
+    QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox { 
         padding: 6px; 
         background-color: #404040; 
         border: 1px solid #555; 
         border-radius: 4px; 
         color: white; 
     }
-    QLineEdit:focus, QComboBox:focus, QSpinBox:focus { 
+    QLineEdit:focus, QComboBox:focus, QSpinBox:focus, QDoubleSpinBox:focus { 
         border-color: #0078d4; 
     }
     QComboBox::drop-down { 
@@ -145,6 +145,25 @@ INPUT_STYLE = """
         background-color: #1e1e1e; 
         border: 1px solid #444; 
         selection-background-color: #0078d4; 
+    }
+"""
+
+# Stile per QCheckBox
+CHECKBOX_STYLE = """
+    QCheckBox { 
+        spacing: 8px; 
+        color: #e0e0e0; 
+    }
+    QCheckBox::indicator { 
+        width: 16px; 
+        height: 16px; 
+        border: 1px solid #777; 
+        border-radius: 4px; 
+        background-color: #404040; 
+    }
+    QCheckBox::indicator:checked { 
+        background-color: #0078d4; 
+        border-color: #0078d4; 
     }
 """
 
@@ -261,7 +280,8 @@ MAIN_SUITE_STYLE = BASE_STYLE + BUTTON_STYLE + PRIMARY_BUTTON_STYLE + DANGER_BUT
 SECONDARY_WINDOW_STYLE = (
     BASE_STYLE + BUTTON_STYLE + PRIMARY_BUTTON_STYLE + SUCCESS_BUTTON_STYLE +
     DANGER_BUTTON_STYLE + INFO_BUTTON_STYLE + SECONDARY_BUTTON_STYLE + ACTION_BUTTON_STYLE +
-    INPUT_STYLE + PROGRESS_BAR_STYLE + LIST_WIDGET_STYLE + TABLE_WIDGET_STYLE + FRAME_STYLE + MESSAGE_BOX_STYLE
+    INPUT_STYLE + CHECKBOX_STYLE + PROGRESS_BAR_STYLE + LIST_WIDGET_STYLE + TABLE_WIDGET_STYLE +
+    FRAME_STYLE + MESSAGE_BOX_STYLE + MENU_STYLE
 )
 
 

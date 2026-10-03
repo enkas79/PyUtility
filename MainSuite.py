@@ -1,13 +1,16 @@
+import importlib
+import json
 import sys
 import urllib.request
-import json
+from typing import Dict, List, Tuple
+
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                              QPushButton, QLabel, QMessageBox)
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, QUrl
 from PyQt6.QtGui import QAction, QDesktopServices
 
 # Import moduli di base
-from base_window import BaseWindow, get_app_version
+from base_window import get_app_version, logger
 from styles import get_style
 
 # --- CONFIGURAZIONE DINAMICA ---
@@ -16,17 +19,20 @@ AUTHOR = "Enrico Martini"
 REPO_OWNER = "enkas79"
 REPO_NAME = "PyUtility"
 
-# Import moduli esterni (Assicurati che i file siano nella stessa cartella)
-try:
-    from ConvImage import ImageResizerApp
-    from MergeImage import ImageMergerApp
-    from Find_Document import FileManagerApp
-    from PDF_plus import PDFPlusPro
-    from PDFtoWord import ModernConverter
-    from PDF_Splitter import PDFSplitterApp
-    from Image_Watermark import WatermarkApp
-except ImportError as e:
-    print(f"Errore caricamento moduli: {e}")
+# Registro dei tool: (etichetta pulsante, modulo, classe finestra).
+# I moduli sono importati solo all'apertura: una dipendenza mancante in un tool
+# non impedisce più l'uso degli altri (prima un unico try/except li bloccava tutti).
+# NB: ogni modulo va dichiarato con --hidden-import nel workflow PyInstaller.
+TOOLS: List[Tuple[str, str, str]] = [
+    ("🖼️ Image Converter/Resizer", "ConvImage", "ImageResizerApp"),
+    ("🧩 Image Merger (Unisci Immagini)", "MergeImage", "ImageMergerApp"),
+    ("🎨 Image Watermark", "Image_Watermark", "WatermarkApp"),
+    ("🔍 Ricerca/Gestione Documenti", "Find_Document", "FileManagerApp"),
+    ("📋 Lista File Cartella", "File_Lister", "FileListerApp"),
+    ("📄 PDF Plus (Unione PDF)", "PDF_plus", "PDFPlusPro"),
+    ("✂️ PDF Splitter", "PDF_Splitter", "PDFSplitterApp"),
+    ("📝 PDF to Word Converter", "PDFtoWord", "ModernConverter"),
+]
 
 
 # ==========================================
@@ -83,12 +89,8 @@ class UtilitySuite(QMainWindow):
     def __init__(self):
         super().__init__()
 
-        # Variabili per gestire le finestre figlie
-        self.img_app = None
-        self.merge_app = None
-        self.find_app = None
-        self.pdf_plus_app = None
-        self.pdf_word_app = None
+        # Riferimenti alle finestre figlie aperte (evita la garbage collection)
+        self.tool_windows: Dict[str, QWidget] = {}
         self.update_thread = None
 
         self.init_ui()
@@ -106,7 +108,7 @@ class UtilitySuite(QMainWindow):
         width = int(screen_w * 0.20)
         height = int(screen_h * 0.40)
 
-        min_w, min_h = 400, 550
+        min_w, min_h = 400, 600
         self.setMinimumSize(min_w, min_h)
         self.resize(max(width, min_w), max(height, min_h))
 
@@ -139,14 +141,12 @@ class UtilitySuite(QMainWindow):
         subtitle_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(subtitle_lbl)
 
-        # Bottoni Utility
-        self.add_menu_button(layout, "🖼️ Image Converter/Resizer", self.open_image_app)
-        self.add_menu_button(layout, "🧩 Image Merger (Unisci Immagini)", self.open_merge_app)
-        self.add_menu_button(layout, "🎨 Image Watermark", self.open_watermark_app)
-        self.add_menu_button(layout, "🔍 Ricerca/Gestione Documenti", self.open_find_app)
-        self.add_menu_button(layout, "📄 PDF Plus (Unione PDF)", self.open_pdf_plus)
-        self.add_menu_button(layout, "✂️ PDF Splitter", self.open_pdf_splitter)
-        self.add_menu_button(layout, "📝 PDF to Word Converter", self.open_pdf_word)
+        # Bottoni Utility generati dal registro TOOLS
+        for label, module_name, class_name in TOOLS:
+            self.add_menu_button(
+                layout, label,
+                lambda _=False, m=module_name, c=class_name: self.open_tool(m, c)
+            )
 
         layout.addStretch()
 
@@ -224,34 +224,20 @@ class UtilitySuite(QMainWindow):
         btn.clicked.connect(function)
         layout.addWidget(btn)
 
-    # --- Funzioni di apertura applicazioni ---
-    def open_image_app(self) -> None:
-        self.img_app = ImageResizerApp()
-        self.img_app.show()
-
-    def open_merge_app(self) -> None:
-        self.merge_app = ImageMergerApp()
-        self.merge_app.show()
-
-    def open_watermark_app(self) -> None:
-        self.watermark_app = WatermarkApp()
-        self.watermark_app.show()
-
-    def open_find_app(self) -> None:
-        self.find_app = FileManagerApp()
-        self.find_app.show()
-
-    def open_pdf_plus(self) -> None:
-        self.pdf_plus_app = PDFPlusPro()
-        self.pdf_plus_app.show()
-
-    def open_pdf_splitter(self) -> None:
-        self.pdf_splitter_app = PDFSplitterApp()
-        self.pdf_splitter_app.show()
-
-    def open_pdf_word(self) -> None:
-        self.pdf_word_app = ModernConverter()
-        self.pdf_word_app.show()
+    def open_tool(self, module_name: str, class_name: str) -> None:
+        """Importa il modulo del tool e ne apre la finestra, gestendo gli errori di caricamento."""
+        try:
+            window_cls = getattr(importlib.import_module(module_name), class_name)
+            window = window_cls()
+        except Exception as e:  # noqa: BLE001 - un tool difettoso non deve chiudere la suite
+            logger.error("Impossibile aprire %s.%s: %s", module_name, class_name, e, exc_info=True)
+            QMessageBox.critical(
+                self, "Errore modulo",
+                f"Impossibile avviare il tool '{module_name}'.\n\nDettagli: {e}"
+            )
+            return
+        self.tool_windows[class_name] = window
+        window.show()
 
 
 if __name__ == '__main__':
