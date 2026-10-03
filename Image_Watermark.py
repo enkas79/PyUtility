@@ -8,15 +8,14 @@ import os
 import logging
 from typing import Optional, List, Tuple
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, 
-    QFileDialog, QMessageBox, QLineEdit, QComboBox, QSpinBox, 
+    QVBoxLayout, QHBoxLayout, QPushButton, QLabel, 
+    QFileDialog, QLineEdit, QComboBox, QSpinBox, 
     QProgressBar, QListWidget, QAbstractItemView, QFrame, QColorDialog
 )
 from PyQt6.QtCore import QThread, pyqtSignal, Qt
-from PyQt6.QtGui import QColor, QFont
+from PyQt6.QtGui import QColor
 from PIL import Image, ImageDraw, ImageFont
 from base_window import BaseWindow
-from styles import get_style
 
 logger = logging.getLogger(__name__)
 
@@ -91,9 +90,10 @@ class WatermarkWorker(QThread):
                         watermarked = self._apply_watermark(img)
                         
                         # Salva l'immagine con watermark
+                        # Salvataggio in PNG (mantiene la trasparenza): estensione coerente
+                        base_name = os.path.splitext(os.path.basename(file_path))[0]
                         output_path = os.path.join(
-                            self.output_folder,
-                            f"watermarked_{os.path.basename(file_path)}"
+                            self.output_folder, f"watermarked_{base_name}.png"
                         )
                         watermarked.save(output_path, "PNG")
                         
@@ -129,18 +129,24 @@ class WatermarkWorker(QThread):
             # Applica watermark di testo
             try:
                 font = ImageFont.truetype("arial.ttf", self.font_size)
-            except:
-                font = ImageFont.load_default()
-            
+            except OSError:  # font non disponibile (es. Linux senza Arial)
+                font = ImageFont.load_default(self.font_size)
+
             # Calcola la posizione del testo
-            text_width, text_height = draw.textsize(self.watermark_text, font=font)
+            # textsize() è stato rimosso in Pillow 10: si usa textbbox()
+            left, top, right, bottom = draw.textbbox((0, 0), self.watermark_text, font=font)
+            text_width, text_height = right - left, bottom - top
             x, y = self._get_position(width, height, text_width, text_height)
-            
-            # Applica il testo con opacità
+
+            # Il testo va disegnato su un livello trasparente: su immagini RGB
+            # ImageDraw ignora il canale alfa e l'opacità non avrebbe effetto
             alpha = int(255 * (self.opacity / 100))
-            color = (*self.font_color, alpha)
-            draw.text((x, y), self.watermark_text, font=font, fill=color)
-            
+            overlay = Image.new("RGBA", watermarked.size, (0, 0, 0, 0))
+            ImageDraw.Draw(overlay).text(
+                (x - left, y - top), self.watermark_text, font=font, fill=(*self.font_color, alpha)
+            )
+            watermarked = Image.alpha_composite(watermarked.convert("RGBA"), overlay).convert(img.mode)
+
         elif self.watermark_type == "image" and self.watermark_image:
             # Applica watermark immagine
             with Image.open(self.watermark_image) as wm_img:
@@ -502,6 +508,7 @@ class WatermarkApp(BaseWindow):
 
 if __name__ == "__main__":
     import sys
+    from PyQt6.QtWidgets import QApplication
     app = QApplication(sys.argv)
     window = WatermarkApp()
     window.show()

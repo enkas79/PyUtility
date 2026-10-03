@@ -42,7 +42,7 @@ jobs:
     - name: Creazione EXE Unico (PyInstaller)
       # I tool sono caricati dinamicamente da MainSuite (importlib): vanno dichiarati con --hidden-import
       run: |
-        pyinstaller --noconsole --onefile --name "PyUtilitySuite" --collect-all pdf2docx --hidden-import ConvImage --hidden-import MergeImage --hidden-import Image_Watermark --hidden-import Find_Document --hidden-import File_Lister --hidden-import PDF_plus --hidden-import PDF_Splitter --hidden-import PDFtoWord --add-data "version.txt;." MainSuite.py
+        pyinstaller --noconsole --onefile --name "PyUtilitySuite" --collect-all pdf2docx --hidden-import ConvImage --hidden-import MergeImage --hidden-import Image_Watermark --hidden-import Find_Document --hidden-import File_Lister --hidden-import PDF_plus --hidden-import PDF_Splitter --hidden-import PDFtoWord --icon icon.ico --add-data "version.txt;." --add-data "assets/icon.png;assets" MainSuite.py
 
     - name: Creazione script Inno Setup (.iss)
       run: |
@@ -124,7 +124,7 @@ jobs:
     - name: Creazione Eseguibile Linux (PyInstaller)
       # I tool sono caricati dinamicamente da MainSuite (importlib): vanno dichiarati con --hidden-import
       run: |
-        pyinstaller --noconsole --onefile --name "PyUtilitySuite" --collect-all pdf2docx --hidden-import ConvImage --hidden-import MergeImage --hidden-import Image_Watermark --hidden-import Find_Document --hidden-import File_Lister --hidden-import PDF_plus --hidden-import PDF_Splitter --hidden-import PDFtoWord --add-data "version.txt:." MainSuite.py
+        pyinstaller --noconsole --onefile --name "PyUtilitySuite" --collect-all pdf2docx --hidden-import ConvImage --hidden-import MergeImage --hidden-import Image_Watermark --hidden-import Find_Document --hidden-import File_Lister --hidden-import PDF_plus --hidden-import PDF_Splitter --hidden-import PDFtoWord --add-data "version.txt:." --add-data "assets/icon.png:assets" MainSuite.py
 
     - name: Impacchettamento Debian (.deb)
       run: |
@@ -133,6 +133,8 @@ jobs:
         mkdir -p $DEB_DIR/DEBIAN
         mkdir -p $DEB_DIR/opt/PyUtilitySuite
         mkdir -p $DEB_DIR/usr/share/applications
+        mkdir -p $DEB_DIR/usr/share/icons/hicolor/256x256/apps
+        cp assets/icon.png $DEB_DIR/usr/share/icons/hicolor/256x256/apps/pyutility-suite.png
 
         cp dist/PyUtilitySuite $DEB_DIR/opt/PyUtilitySuite/
         chmod +x $DEB_DIR/opt/PyUtilitySuite/PyUtilitySuite
@@ -152,6 +154,7 @@ jobs:
         Version=${VERSION}
         Name=PyUtilitySuite
         Exec=/opt/PyUtilitySuite/PyUtilitySuite
+        Icon=pyutility-suite
         Terminal=false
         Type=Application
         Categories=Utility;

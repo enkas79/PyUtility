@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <!-- Sfondo: tile arrotondata blu notte -->
+  <rect x="8" y="8" width="240" height="240" rx="52" fill="#1e293b"/>
+  <rect x="8" y="8" width="240" height="240" rx="52" fill="none" stroke="#334155" stroke-width="4"/>
+
+  <!-- Foglio immagine (dietro, ruotato): rappresenta i tool immagini -->
+  <g transform="rotate(-12 104 118)">
+    <rect x="44" y="58" width="112" height="132" rx="14" fill="#0ea5e9"/>
+    <circle cx="78" cy="94" r="13" fill="#fde68a"/>
+    <path d="M52 176 L88 130 L110 156 L126 138 L148 176 Z" fill="#0c4a6e" opacity="0.85"/>
+  </g>
+
+  <!-- Documento (davanti): rappresenta i tool PDF/documenti -->
+  <path d="M100 52 H166 L200 86 V196 a14 14 0 0 1 -14 14 H100 a14 14 0 0 1 -14 -14 V66 a14 14 0 0 1 14 -14 Z" fill="#f8fafc"/>
+  <path d="M166 52 V74 a12 12 0 0 0 12 12 H200 Z" fill="#cbd5e1"/>
+  <rect x="104" y="104" width="78" height="10" rx="5" fill="#3b82f6"/>
+  <rect x="104" y="126" width="62" height="10" rx="5" fill="#94a3b8"/>
+  <rect x="104" y="148" width="72" height="10" rx="5" fill="#94a3b8"/>
+
+  <!-- Badge utility: chiave inglese arancione -->
+  <circle cx="186" cy="186" r="46" fill="#f97316" stroke="#1e293b" stroke-width="8"/>
+  <g transform="rotate(45 186 186)">
+    <path d="M178 156 a18 18 0 1 0 16 0 V170 h-16 Z" fill="#1e293b"/>
+    <rect x="179" y="182" width="14" height="40" rx="7" fill="#1e293b"/>
+  </g>
+</svg>

@@ -175,3 +175,25 @@ def test_export_txt(tmp_path: Path) -> None:
     export_txt(_entries_di_prova(), str(out))
     righe = out.read_text(encoding="utf-8").splitlines()
     assert righe == ["/x/a.pdf", "/x/s/b;c.txt"]
+
+
+# ---------- filtro parola chiave (usato da Find_Document) ----------
+
+def test_scan_filtro_parola_chiave_case_insensitive(albero: Path) -> None:
+    _crea_file(albero / "Fattura_2024.pdf", 50)
+    _crea_file(albero / "sub" / "fattura-bis.txt", 50)
+    opts = FileListOptions(folder=str(albero), keyword="FATTURA")
+    assert _nomi(scan_folder(opts)) == {"Fattura_2024.pdf", "fattura-bis.txt"}
+
+
+def test_scan_parola_chiave_con_estensione(albero: Path) -> None:
+    _crea_file(albero / "Fattura_2024.pdf", 50)
+    _crea_file(albero / "fattura.txt", 50)
+    opts = FileListOptions(folder=str(albero), keyword="fattura",
+                           extensions=frozenset({".pdf"}))
+    assert _nomi(scan_folder(opts)) == {"Fattura_2024.pdf"}
+
+
+def test_scan_parola_chiave_vuota_non_filtra(albero: Path) -> None:
+    opts = FileListOptions(folder=str(albero), keyword="   ")
+    assert len(list(scan_folder(opts))) == 6

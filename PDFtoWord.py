@@ -8,8 +8,7 @@ import sys
 import os
 from typing import Optional
 from PyQt6.QtWidgets import (
-    QApplication, QWidget, QVBoxLayout, QHBoxLayout,
-    QPushButton, QLabel, QFileDialog, QMessageBox, QProgressBar
+    QApplication, QWidget, QVBoxLayout, QPushButton, QLabel, QFileDialog, QMessageBox, QProgressBar
 )
 from PyQt6.QtCore import QThread, pyqtSignal, Qt
 from pdf2docx import Converter

@@ -6,12 +6,11 @@ per estensione e dimensione, ed esportazione in CSV/TXT.
 La logica di scansione/esportazione risiede in file_lister_core.py.
 """
 
-import logging
 import os
 import sys
-from typing import Callable, List, Optional
+from typing import List, Optional
 
-from PyQt6.QtCore import QThread, Qt, pyqtSignal
+from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QAction
 from PyQt6.QtWidgets import (
     QAbstractItemView, QApplication, QCheckBox, QComboBox, QDoubleSpinBox,
@@ -19,14 +18,13 @@ from PyQt6.QtWidgets import (
     QMenuBar, QPushButton, QTableWidget, QTableWidgetItem,
 )
 
-from base_window import BaseWindow
+from base_window import BaseWindow, SortableTableItem
 from file_lister_core import (
     FileEntry, FileListOptions, export_csv, export_txt, format_size,
-    parse_extensions, parse_size, scan_folder,
+    parse_extensions, parse_size,
 )
+from file_workers import ExportWorker, ScanWorker
 from styles import get_style
-
-logger = logging.getLogger(__name__)
 
 # Preset rapidi per il filtro estensioni
 EXTENSION_PRESETS = {
@@ -37,72 +35,6 @@ EXTENSION_PRESETS = {
     "Archivi": "zip rar 7z tar gz bz2",
 }
 SIZE_UNITS = ["B", "KB", "MB", "GB"]
-BATCH_SIZE = 250  # file inviati alla GUI per ogni segnale (riduce l'overhead)
-
-
-class _SortableItem(QTableWidgetItem):
-    """Cella che ordina in base a una chiave numerica invece che al testo."""
-
-    def __init__(self, text: str, sort_key: float) -> None:
-        super().__init__(text)
-        self._sort_key = sort_key
-
-    def __lt__(self, other: QTableWidgetItem) -> bool:
-        if isinstance(other, _SortableItem):
-            return self._sort_key < other._sort_key
-        return super().__lt__(other)
-
-
-class ScanWorker(QThread):
-    """Esegue la scansione della cartella in background, inviando i risultati a blocchi."""
-    batch_found = pyqtSignal(list)    # List[FileEntry]
-    finished_scan = pyqtSignal(bool)  # True se annullata
-    error = pyqtSignal(str)
-
-    def __init__(self, options: FileListOptions) -> None:
-        super().__init__()
-        self.options = options
-        self._stop = False
-
-    def run(self) -> None:
-        batch: List[FileEntry] = []
-        try:
-            for entry in scan_folder(self.options, should_stop=lambda: self._stop):
-                batch.append(entry)
-                if len(batch) >= BATCH_SIZE:
-                    self.batch_found.emit(batch)
-                    batch = []
-            if batch:
-                self.batch_found.emit(batch)
-            self.finished_scan.emit(self._stop)
-        except Exception as e:  # noqa: BLE001 - nessun crash del thread
-            logger.error("Errore durante la scansione: %s", e, exc_info=True)
-            self.error.emit(str(e))
-
-    def stop(self) -> None:
-        """Richiede l'interruzione cooperativa della scansione."""
-        self._stop = True
-
-
-class ExportWorker(QThread):
-    """Scrive su disco l'elenco dei file in background."""
-    done = pyqtSignal(str)
-    error = pyqtSignal(str)
-
-    def __init__(self, exporter: Callable[[List[FileEntry], str], None],
-                 entries: List[FileEntry], dest_path: str) -> None:
-        super().__init__()
-        self.exporter = exporter
-        self.entries = entries
-        self.dest_path = dest_path
-
-    def run(self) -> None:
-        try:
-            self.exporter(self.entries, self.dest_path)
-            self.done.emit(self.dest_path)
-        except OSError as e:
-            logger.error("Errore durante l'esportazione: %s", e, exc_info=True)
-            self.error.emit(str(e))
 
 
 class FileListerApp(BaseWindow):
@@ -319,10 +251,10 @@ class FileListerApp(BaseWindow):
         for entry in batch:
             self.table.setItem(row, 0, QTableWidgetItem(entry.name))
             self.table.setItem(row, 1, QTableWidgetItem(entry.extension))
-            size_item = _SortableItem(format_size(entry.size), entry.size)
+            size_item = SortableTableItem(format_size(entry.size), entry.size)
             size_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
             self.table.setItem(row, 2, size_item)
-            self.table.setItem(row, 3, _SortableItem(entry.modified_str, entry.modified))
+            self.table.setItem(row, 3, SortableTableItem(entry.modified_str, entry.modified))
             path_item = QTableWidgetItem(entry.relative_path)
             path_item.setToolTip(entry.path)
             self.table.setItem(row, 4, path_item)

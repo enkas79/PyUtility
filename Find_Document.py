@@ -2,269 +2,288 @@
 File Manager Module
 ===================
 Tool per la ricerca e gestione di documenti con filtri per estensione e parole chiave.
+Scansione e copia/spostamento avvengono in background (file_workers) usando
+la logica condivisa di file_lister_core.
 """
 
-import sys
 import os
-import shutil
-from typing import Optional, List, Tuple
+import sys
+from typing import List, Optional, Set
+
+from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QAction
 from PyQt6.QtWidgets import (
-    QApplication, QWidget, QVBoxLayout, QHBoxLayout,
-    QPushButton, QLabel, QFileDialog, QMessageBox,
-    QLineEdit, QComboBox, QTableWidget,
-    QTableWidgetItem, QHeaderView, QAbstractItemView, QFrame
+    QAbstractItemView, QApplication, QCheckBox, QComboBox, QFileDialog, QFrame,
+    QHBoxLayout, QHeaderView, QLabel, QLineEdit, QMenuBar, QMessageBox,
+    QProgressBar, QPushButton, QTableWidget, QTableWidgetItem,
 )
-from PyQt6.QtCore import QThread, pyqtSignal, Qt
+
+from base_window import BaseWindow, SortableTableItem
+from file_lister_core import FileEntry, FileListOptions, format_size, parse_extensions
+from file_workers import ScanWorker, TransferWorker
+from styles import get_style
+
+# Voci predefinite del filtro estensione (il campo è comunque editabile)
+EXTENSION_CHOICES = ["Tutte", ".pdf", ".docx", ".xlsx", ".txt", ".jpg", ".png"]
+PATH_ROLE = Qt.ItemDataRole.UserRole  # percorso completo salvato nella cella "Nome"
 
 
-class SearchWorker(QThread):
-    """
-    Thread per eseguire la ricerca dei file in background.
-    
-    Attributes:
-        found_signal (pyqtSignal): Segnale emesso quando un file viene trovato.
-        finished_signal (pyqtSignal): Segnale emesso al completamento della ricerca.
-    """
-    found_signal = pyqtSignal(str, str)  # Emette (nome_file, percorso_completo)
-    finished_signal = pyqtSignal(int)    # Emette il numero totale di file trovati
+class FileManagerApp(BaseWindow):
+    """Ricerca file per estensione/parola chiave e copia o sposta i risultati."""
 
-    def __init__(self, start_dir: str, extension: str, keyword: str) -> None:
-        """
-        Inizializza il worker per la ricerca dei file.
-        
-        Args:
-            start_dir (str): Directory di partenza per la ricerca.
-            extension (str): Estensione dei file da cercare (es. ".pdf").
-            keyword (str): Parola chiave per filtrare i file.
-        """
-        super().__init__()
-        self.start_dir = start_dir
-        self.extension = extension.lower()
-        self.keyword = keyword.lower()
-        self.is_running: bool = True
-
-    def run(self) -> None:
-        """Esegue la ricerca ricorsiva dei file."""
-        count: int = 0
-        for root, _, files in os.walk(self.start_dir):
-            if not self.is_running:
-                break
-            for filename in files:
-                if self.extension != "tutte" and not filename.lower().endswith(self.extension):
-                    continue
-                if self.keyword and self.keyword not in filename.lower():
-                    continue
-                self.found_signal.emit(filename, os.path.join(root, filename))
-                count += 1
-        self.finished_signal.emit(count)
-
-    def stop(self) -> None:
-        """Ferma la ricerca in corso."""
-        self.is_running = False
-
-
-class FileManagerApp(QWidget):
-    """
-    Applicazione per la ricerca e gestione dei file.
-    
-    Attributes:
-        worker (SearchWorker): Thread per la ricerca dei file.
-    """
+    COLUMNS = ["Nome File", "Dimensione", "Percorso Completo"]
 
     def __init__(self) -> None:
-        """Inizializza l'applicazione FileManager."""
-        super().__init__()
-        self.worker: Optional[SearchWorker] = None
-        self.initUI()
+        super().__init__("Gestore File Avanzato", min_width=720, min_height=600)
+        self.setStyleSheet(get_style("secondary"))
+        self.scan_worker: Optional[ScanWorker] = None
+        self.transfer_worker: Optional[TransferWorker] = None
+        self.found_count: int = 0
+        self._init_ui()
+        self._update_buttons()
 
-    def initUI(self) -> None:
-        """Inizializza l'interfaccia utente."""
-        # --- LOGICA DIMENSIONI E CENTRATURA ---
-        screen = QApplication.primaryScreen().availableGeometry()
-        width = int(screen.width() * 0.20)
-        height = int(screen.height() * 0.40)
-        min_w, min_h = 500, 600
-        self.setMinimumSize(min_w, min_h)
-        self.resize(max(width, min_w), max(height, min_h))
-        qr = self.frameGeometry()
-        qr.moveCenter(screen.center())
-        self.move(qr.topLeft())
+    # ---------------------------------------------------------------- UI
+    def _init_ui(self) -> None:
+        layout = self.create_vertical_layout(margins=(16, 8, 16, 16), spacing=12)
+        layout.setMenuBar(self._create_menu())
 
-        self.setWindowTitle('Gestore File Avanzato')
-        self.setStyleSheet("""
-            QWidget { background-color: #2b2b2b; color: #ffffff; font-family: 'Segoe UI', sans-serif; }
-            QLineEdit, QComboBox { padding: 6px; border-radius: 4px; background-color: #404040; border: 1px solid #555; color: white; }
-            QTableWidget { background-color: #1e1e1e; gridline-color: #444; border: 1px solid #555; }
-            QHeaderView::section { background-color: #333; padding: 4px; border: 1px solid #444; color: #ccc; }
-            QTableWidget::item:selected { background-color: #0078d4; }
-            QPushButton { background-color: #444; color: white; padding: 8px 15px; border-radius: 4px; font-weight: bold; border: 1px solid #555; }
-            QPushButton:hover { background-color: #555; }
-            QPushButton#searchBtn { background-color: #0078d4; border: none; }
-            QPushButton#moveBtn { background-color: #d81b60; border: none; } 
-            QPushButton#copyBtn { background-color: #00c853; border: none; }
-            QPushButton#exitBtn { background-color: #D32F2F; border: 1px solid #B71C1C; font-size: 13px; }
-            QPushButton#exitBtn:hover { background-color: #FF5252; }
-        """)
+        title = QLabel("🔍 Ricerca/Gestione Documenti")
+        title.setObjectName("title")
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(title)
 
-        main_layout = QVBoxLayout()
-        
         # Sezione ricerca
-        search_layout = QHBoxLayout()
-        self.src_edit = QLineEdit(os.path.expanduser("~\\Documents"))
+        search_row = QHBoxLayout()
+        search_row.setSpacing(8)
+        default_dir = os.path.join(os.path.expanduser("~"), "Documents")
+        self.src_edit = QLineEdit(default_dir if os.path.isdir(default_dir) else os.path.expanduser("~"))
         btn_src = QPushButton("📂 Cerca in...")
-        btn_src.clicked.connect(lambda: self.select_folder(self.src_edit))
-        
+        btn_src.clicked.connect(lambda: self._select_folder(self.src_edit))
+        search_row.addWidget(self.src_edit, 1)
+        search_row.addWidget(btn_src)
+        layout.addLayout(search_row)
+
+        filter_row = QHBoxLayout()
+        filter_row.setSpacing(8)
         self.combo_ext = QComboBox()
-        self.combo_ext.addItems(["Tutte", ".pdf", ".docx", ".xlsx", ".txt", ".jpg", ".png"])
-        
+        self.combo_ext.setEditable(True)  # consente estensioni libere (es. "pdf, odt")
+        self.combo_ext.addItems(EXTENSION_CHOICES)
+        self.combo_ext.setToolTip("Scegli o digita una o più estensioni separate da virgola")
         self.keyword_edit = QLineEdit()
-        self.keyword_edit.setPlaceholderText("Parola chiave (opzionale)")
-        
+        self.keyword_edit.setPlaceholderText("Parola chiave nel nome (opzionale)")
+        self.keyword_edit.returnPressed.connect(self._start_search)
+        self.chk_recursive = QCheckBox("Sottocartelle")
+        self.chk_recursive.setChecked(True)
         self.btn_search = QPushButton("🔍 Cerca")
-        self.btn_search.setObjectName("searchBtn")
-        self.btn_search.clicked.connect(self.start_search)
-        
-        search_layout.addWidget(self.src_edit, 2)
-        search_layout.addWidget(btn_src)
-        search_layout.addWidget(self.combo_ext)
-        search_layout.addWidget(self.keyword_edit, 1)
-        search_layout.addWidget(self.btn_search)
-        main_layout.addLayout(search_layout)
-        
+        self.btn_search.setObjectName("primaryBtn")
+        self.btn_search.clicked.connect(self._start_search)
+        self.btn_stop = QPushButton("⏹ Stop")
+        self.btn_stop.setObjectName("dangerBtn")
+        self.btn_stop.clicked.connect(self._stop_all)
+        filter_row.addWidget(self.combo_ext)
+        filter_row.addWidget(self.keyword_edit, 1)
+        filter_row.addWidget(self.chk_recursive)
+        filter_row.addWidget(self.btn_search)
+        filter_row.addWidget(self.btn_stop)
+        layout.addLayout(filter_row)
+
         # Tabella risultati
-        self.table = QTableWidget()
-        self.table.setColumnCount(2)
-        self.table.setHorizontalHeaderLabels(["Nome File", "Percorso Completo"])
-        self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        self.table = QTableWidget(0, len(self.COLUMNS))
+        self.table.setHorizontalHeaderLabels(self.COLUMNS)
+        header = self.table.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
+        header.setSortIndicator(0, Qt.SortOrder.AscendingOrder)
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-        main_layout.addWidget(self.table)
-        
-        # Barra di stato
+        self.table.verticalHeader().setVisible(False)
+        self.table.setSortingEnabled(True)
+        self.table.itemSelectionChanged.connect(self._update_buttons)
+        layout.addWidget(self.table, 1)
+
         self.status_label = QLabel("Pronto.")
-        main_layout.addWidget(self.status_label)
-        
+        layout.addWidget(self.status_label)
+        self.progress = QProgressBar()
+        self.progress.setVisible(False)
+        layout.addWidget(self.progress)
+
         # Sezione azioni (copia/sposta)
         action_box = QFrame()
-        action_box.setStyleSheet("background-color: #383838; border-radius: 8px;")
         action_layout = QHBoxLayout(action_box)
-        
+        action_layout.setContentsMargins(8, 8, 8, 8)
+        action_layout.setSpacing(8)
         self.dst_edit = QLineEdit()
+        self.dst_edit.setPlaceholderText("Cartella di destinazione")
         btn_dst = QPushButton("📂 Sfoglia")
-        btn_dst.clicked.connect(lambda: self.select_folder(self.dst_edit))
-        
+        btn_dst.clicked.connect(lambda: self._select_folder(self.dst_edit))
         self.btn_move = QPushButton("✂️ SPOSTA")
         self.btn_move.setObjectName("moveBtn")
-        self.btn_move.clicked.connect(lambda: self.execute_action("move"))
-        
+        self.btn_move.clicked.connect(lambda: self._start_transfer("move"))
         self.btn_copy = QPushButton("📑 COPIA")
         self.btn_copy.setObjectName("copyBtn")
-        self.btn_copy.clicked.connect(lambda: self.execute_action("copy"))
-        
-        action_layout.addWidget(self.dst_edit)
+        self.btn_copy.clicked.connect(lambda: self._start_transfer("copy"))
+        btn_exit = QPushButton("Esci")
+        btn_exit.setObjectName("exitBtn")
+        btn_exit.clicked.connect(self.close)
+        action_layout.addWidget(self.dst_edit, 1)
         action_layout.addWidget(btn_dst)
         action_layout.addWidget(self.btn_move)
         action_layout.addWidget(self.btn_copy)
-        action_layout.addStretch()
-        
-        # Pulsante Esci
-        self.btn_exit = QPushButton("Esci")
-        self.btn_exit.setObjectName("exitBtn")
-        self.btn_exit.setFixedWidth(100)
-        self.btn_exit.clicked.connect(self.close)
-        action_layout.addWidget(self.btn_exit)
-        
-        main_layout.addWidget(action_box)
-        self.setLayout(main_layout)
+        action_layout.addWidget(btn_exit)
+        layout.addWidget(action_box)
 
-    def select_folder(self, line_edit: QLineEdit) -> None:
-        """
-        Apre la dialog per selezionare una cartella e aggiorna il QLineEdit.
-        
-        Args:
-            line_edit (QLineEdit): Campo di testo da aggiornare con il percorso selezionato.
-        """
-        folder: Optional[str] = QFileDialog.getExistingDirectory(self, "Seleziona")
+        self.setLayout(layout)
+
+    def _create_menu(self) -> QMenuBar:
+        """Barra dei menu con la guida del tool."""
+        menubar = QMenuBar(self)
+        help_menu = menubar.addMenu("&Aiuto")
+        act_help = QAction("Guida", self)
+        act_help.triggered.connect(self._show_help)
+        help_menu.addAction(act_help)
+        return menubar
+
+    def _select_folder(self, line_edit: QLineEdit) -> None:
+        folder = QFileDialog.getExistingDirectory(self, "Seleziona cartella", line_edit.text())
         if folder:
             line_edit.setText(folder)
 
-    def start_search(self) -> None:
-        """Avvia la ricerca dei file in background."""
-        if not os.path.exists(self.src_edit.text()):
-            QMessageBox.warning(self, "Attenzione", "La directory di ricerca non esiste.")
+    def _is_busy(self) -> bool:
+        return any(w is not None and w.isRunning() for w in (self.scan_worker, self.transfer_worker))
+
+    def _update_buttons(self) -> None:
+        """Abilita/disabilita i comandi in base allo stato corrente."""
+        busy = self._is_busy()
+        has_selection = bool(self.table.selectionModel().selectedRows())
+        self.btn_search.setEnabled(not busy)
+        self.btn_stop.setEnabled(busy)
+        self.btn_move.setEnabled(has_selection and not busy)
+        self.btn_copy.setEnabled(has_selection and not busy)
+
+    # --------------------------------------------------------- ricerca
+    def _start_search(self) -> None:
+        if self._is_busy():
             return
-        
+        folder = self.src_edit.text().strip()
+        if not os.path.isdir(folder):
+            self.show_warning("La directory di ricerca non esiste.")
+            return
+        ext_text = self.combo_ext.currentText()
+        options = FileListOptions(
+            folder=folder,
+            extensions=frozenset() if ext_text.lower() == "tutte" else parse_extensions(ext_text),
+            keyword=self.keyword_edit.text(),
+            recursive=self.chk_recursive.isChecked(),
+        )
+
         self.table.setRowCount(0)
-        self.btn_search.setEnabled(False)
+        self.found_count = 0
         self.status_label.setText("⏳ Ricerca...")
-        
-        self.worker = SearchWorker(
-            self.src_edit.text(),
-            self.combo_ext.currentText(),
-            self.keyword_edit.text()
-        )
-        self.worker.found_signal.connect(self.add_table_row)
-        self.worker.finished_signal.connect(self.on_search_finished)
-        self.worker.start()
+        self.scan_worker = ScanWorker(options)
+        self.scan_worker.batch_found.connect(self._add_batch)
+        self.scan_worker.finished_scan.connect(self._on_search_finished)
+        self.scan_worker.error.connect(self.show_error)
+        self.scan_worker.finished.connect(self._update_buttons)
+        self.scan_worker.start()
+        self._update_buttons()
 
-    def add_table_row(self, name: str, path: str) -> None:
-        """
-        Aggiunge una riga alla tabella con il nome e il percorso del file trovato.
-        
-        Args:
-            name (str): Nome del file.
-            path (str): Percorso completo del file.
-        """
-        row: int = self.table.rowCount()
-        self.table.insertRow(row)
-        self.table.setItem(row, 0, QTableWidgetItem(name))
-        self.table.setItem(row, 1, QTableWidgetItem(path))
+    def _add_batch(self, batch: List[FileEntry]) -> None:
+        """Aggiunge un blocco di risultati alla tabella."""
+        self.table.setSortingEnabled(False)  # evita riordini a ogni inserimento
+        row = self.table.rowCount()
+        self.table.setRowCount(row + len(batch))
+        for entry in batch:
+            name_item = QTableWidgetItem(entry.name)
+            name_item.setData(PATH_ROLE, entry.path)
+            self.table.setItem(row, 0, name_item)
+            size_item = SortableTableItem(format_size(entry.size), entry.size)
+            size_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            self.table.setItem(row, 1, size_item)
+            self.table.setItem(row, 2, QTableWidgetItem(entry.path))
+            row += 1
+        self.table.setSortingEnabled(True)
+        self.found_count += len(batch)
+        self.status_label.setText(f"⏳ {self.found_count} file trovati...")
 
-    def on_search_finished(self, count: int) -> None:
-        """
-        Slot eseguito al completamento della ricerca.
-        
-        Args:
-            count (int): Numero di file trovati.
-        """
-        self.status_label.setText(f"✅ Trovati {count} file.")
-        self.btn_search.setEnabled(True)
+    def _on_search_finished(self, cancelled: bool) -> None:
+        prefix = "⏹ Ricerca interrotta" if cancelled else "✅ Trovati"
+        self.status_label.setText(f"{prefix}: {self.found_count} file.")
 
-    def execute_action(self, mode: str) -> None:
-        """
-        Esegue l'azione di copia o spostamento sui file selezionati.
-        
-        Args:
-            mode (str): Modalità di azione ("copy" o "move").
-        """
-        dest_dir: str = self.dst_edit.text()
-        rows: List[int] = sorted(
-            set(index.row() for index in self.table.selectedIndexes()),
-            reverse=True
-        )
-        
-        if not rows or not os.path.exists(dest_dir):
-            QMessageBox.warning(self, "Attenzione", "Seleziona almeno un file e una cartella di destinazione valida.")
+    # --------------------------------------------------- copia/sposta
+    def _selected_paths(self) -> List[str]:
+        return [self.table.item(idx.row(), 0).data(PATH_ROLE)
+                for idx in self.table.selectionModel().selectedRows()]
+
+    def _start_transfer(self, mode: str) -> None:
+        sources = self._selected_paths()
+        dest_dir = self.dst_edit.text().strip()
+        if not sources or not os.path.isdir(dest_dir):
+            self.show_warning("Seleziona almeno un file e una cartella di destinazione valida.")
             return
-        
+        verbo = "Spostare" if mode == "move" else "Copiare"
         if QMessageBox.question(
-            self, "Conferma",
-            f"Eseguire operazione su {len(rows)} file?",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
-        ) == QMessageBox.StandardButton.Yes:
-            
-            for r in rows:
-                path: str = self.table.item(r, 1).text()
-                try:
-                    if mode == "move":
-                        shutil.move(path, os.path.join(dest_dir, self.table.item(r, 0).text()))
-                        self.table.removeRow(r)
-                    else:  # copy
-                        shutil.copy2(path, dest_dir)
-                except Exception as e:
-                    QMessageBox.warning(self, "Errore", f"Errore durante l'operazione su {path}: {str(e)}")
-            
-            QMessageBox.information(self, "Finito", "Operazione completata.")
+            self, "Conferma", f"{verbo} {len(sources)} file in:\n{dest_dir}?\n\n"
+            "I file omonimi già presenti non verranno sovrascritti.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        ) != QMessageBox.StandardButton.Yes:
+            return
+
+        self.progress.setRange(0, len(sources))
+        self.progress.setValue(0)
+        self.progress.setVisible(True)
+        self.transfer_worker = TransferWorker(sources, dest_dir, mode)
+        self.transfer_worker.progress.connect(lambda i, _n: self.progress.setValue(i))
+        self.transfer_worker.done.connect(
+            lambda n, completed, errors: self._on_transfer_done(mode, n, completed, errors))
+        self.transfer_worker.error.connect(self.show_error)
+        self.transfer_worker.finished.connect(self._update_buttons)
+        self.transfer_worker.start()
+        self._update_buttons()
+
+    def _on_transfer_done(self, mode: str, done: int, completed: List[str], errors: List[str]) -> None:
+        self.progress.setVisible(False)
+        if mode == "move":
+            self._remove_rows(set(completed))
+        self.status_label.setText(f"✅ {done} file {'spostati' if mode == 'move' else 'copiati'}.")
+        if errors:
+            dettagli = "\n".join(errors[:10]) + (f"\n... e altri {len(errors) - 10}" if len(errors) > 10 else "")
+            self.show_warning(f"{len(errors)} file non elaborati:\n\n{dettagli}", "Operazione parziale")
+        else:
+            self.show_info("Operazione completata.", "Finito")
+
+    def _remove_rows(self, paths: Set[str]) -> None:
+        """Rimuove dalla tabella le righe dei file spostati."""
+        for row in range(self.table.rowCount() - 1, -1, -1):
+            if self.table.item(row, 0).data(PATH_ROLE) in paths:
+                self.table.removeRow(row)
+        self.found_count = self.table.rowCount()
+
+    # ------------------------------------------------------------ varie
+    def _stop_all(self) -> None:
+        for worker in (self.scan_worker, self.transfer_worker):
+            if worker is not None and worker.isRunning():
+                worker.stop()
+
+    def _show_help(self) -> None:
+        self.show_info(
+            "1. Scegli la cartella in cui cercare.\n"
+            "2. Scegli o digita le estensioni (es. 'pdf, docx'; 'Tutte' = nessun filtro) "
+            "e, se vuoi, una parola chiave contenuta nel nome.\n"
+            "3. Premi 'Cerca' (o Invio nel campo parola chiave).\n"
+            "4. Seleziona i file nella tabella, indica la destinazione e premi COPIA o SPOSTA.\n\n"
+            "I file omonimi nella destinazione non vengono sovrascritti: "
+            "viene aggiunto un suffisso ' (1)', ' (2)', ...",
+            "Guida - Ricerca Documenti",
+        )
+
+    def closeEvent(self, event) -> None:  # noqa: N802 - firma Qt
+        """Ferma i thread in corso prima di chiudere la finestra."""
+        self._stop_all()
+        for worker in (self.scan_worker, self.transfer_worker):
+            if worker is not None:
+                worker.wait(3000)
+        super().closeEvent(event)
 
 
 if __name__ == '__main__':

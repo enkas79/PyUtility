@@ -12,7 +12,7 @@ from PyQt6.QtWidgets import (
     QPushButton, QLabel, QFileDialog, QMessageBox,
     QProgressBar, QLineEdit
 )
-from PyQt6.QtCore import QThread, pyqtSignal, Qt
+from PyQt6.QtCore import QThread, pyqtSignal
 from PyPDF2 import PdfReader, PdfWriter
 
 

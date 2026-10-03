@@ -7,11 +7,10 @@ Supporta formati: JPG, PNG, WEBP, BMP, ICO, TIFF.
 
 import sys
 import os
-from typing import Optional, List, Dict, Tuple
+from typing import Optional, List, Dict
 from PyQt6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout,
-    QPushButton, QLabel, QFileDialog, QMessageBox,
-    QProgressBar, QListWidget, QComboBox, QFrame,
+    QPushButton, QLabel, QFileDialog, QProgressBar, QListWidget, QComboBox, QFrame,
     QSpinBox, QDialog
 )
 from PyQt6.QtCore import QThread, pyqtSignal, Qt
