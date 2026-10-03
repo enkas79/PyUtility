@@ -16,6 +16,8 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import QThread, pyqtSignal, Qt
 from PIL import Image
 
+from base_window import BaseWindow
+
 
 class ReportDialog(QDialog):
     """
@@ -30,18 +32,11 @@ class ReportDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle(title)
         self.setMinimumSize(400, 220)
-        self.setStyleSheet("""
-            QDialog { background-color: #2b2b2b; color: white; border: 1px solid #555; }
-            QLabel { font-size: 16px; color: #e0e0e0; }
-            QLabel#titleMsg { font-size: 22px; font-weight: bold; color: #00c853; margin-bottom: 10px; }
-            QPushButton { background-color: #0078d4; color: white; padding: 10px 20px; border-radius: 5px; font-weight: bold; font-size: 14px; }
-            QPushButton:hover { background-color: #1e90ff; }
-        """)
         layout = QVBoxLayout()
-        layout.setSpacing(20)
-        layout.setContentsMargins(30, 30, 30, 30)
+        layout.setSpacing(24)
+        layout.setContentsMargins(32, 32, 32, 32)
         lbl_title = QLabel("✅ Operazione Completata")
-        lbl_title.setObjectName("titleMsg")
+        lbl_title.setObjectName("successTitle")
         lbl_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(lbl_title)
         lbl_msg = QLabel(message)
@@ -173,7 +168,7 @@ class ConversionWorker(QThread):
         )
 
 
-class ImageResizerApp(QWidget):
+class ImageResizerApp(BaseWindow):
     """
     Applicazione principale per la conversione e il ridimensionamento delle immagini.
     
@@ -181,43 +176,25 @@ class ImageResizerApp(QWidget):
         file_list (List[str]): Lista dei percorsi delle immagini selezionate.
     """
 
+    GUIDE_TEXT = (
+        "1. Premi 'Aggiungi' per inserire le immagini (JPG, PNG, WEBP, BMP).\n"
+        "2. Scegli il formato di output (JPG, PNG, WEBP, BMP, ICO, TIFF).\n"
+        "3. (Opzionale) Scegli il ridimensionamento: percentuale, larghezza o altezza fissa; "
+        "le proporzioni vengono sempre mantenute.\n"
+        "4. Premi 'AVVIA PROCESSO' e scegli la cartella di destinazione.\n\n"
+        "Le immagini originali non vengono modificate."
+    )
+
     def __init__(self) -> None:
         """Inizializza l'applicazione ImageResizer."""
-        super().__init__()
+        super().__init__('Image Converter & Resizer', min_width=400, min_height=500)
         self.file_list: List[str] = []
         self.initUI()
 
     def initUI(self) -> None:
         """Inizializza l'interfaccia utente."""
-        # --- LOGICA DIMENSIONI E CENTRATURA ---
-        screen = QApplication.primaryScreen().availableGeometry()
-        width = int(screen.width() * 0.20)
-        height = int(screen.height() * 0.40)
-        min_w, min_h = 400, 500
-        self.setMinimumSize(min_w, min_h)
-        self.resize(max(width, min_w), max(height, min_h))
-        qr = self.frameGeometry()
-        qr.moveCenter(screen.center())
-        self.move(qr.topLeft())
-
-        self.setWindowTitle('Image Converter & Resizer')
-        self.setStyleSheet("""
-            QWidget { background-color: #2b2b2b; color: #ffffff; font-family: 'Segoe UI', sans-serif; }
-            QListWidget { background-color: #1e1e1e; border: 1px solid #444; border-radius: 4px; padding: 5px; }
-            QComboBox, QSpinBox { padding: 6px; background-color: #404040; border: 1px solid #555; border-radius: 4px; color: white; }
-            QPushButton { background-color: #444; padding: 8px; border-radius: 4px; font-weight: bold; border: none; }
-            QPushButton:hover { background-color: #555; }
-            QPushButton#addBtn { background-color: #0078d4; }
-            QPushButton#convertBtn { background-color: #00c853; font-size: 14px; }
-            QPushButton#exitBtn { background-color: #d32f2f; } 
-            QPushButton#exitBtn:hover { background-color: #ff5252; }
-            QFrame { background-color: #333; border-radius: 6px; }
-            QLabel#sectionTitle { font-weight: bold; color: #ccc; }
-        """)
-
-        layout = QVBoxLayout()
-        layout.setSpacing(12)
-        layout.setContentsMargins(20, 20, 20, 20)
+        layout = self.create_vertical_layout(margins=(16, 8, 16, 16), spacing=12)
+        layout.setMenuBar(self.create_menu_bar())
         layout.addWidget(QLabel("1. Immagini:", objectName="sectionTitle"))
         
         btn_layout = QHBoxLayout()
@@ -225,6 +202,7 @@ class ImageResizerApp(QWidget):
         self.btn_add.setObjectName("addBtn")
         self.btn_add.clicked.connect(self.add_images)
         self.btn_clear = QPushButton("🗑️ Svuota")
+        self.btn_clear.setObjectName("clearBtn")
         self.btn_clear.clicked.connect(self.clear_list)
         btn_layout.addWidget(self.btn_add)
         btn_layout.addWidget(self.btn_clear)
@@ -320,7 +298,7 @@ class ImageResizerApp(QWidget):
     def start_conversion(self) -> None:
         """Avvia il processo di conversione dopo aver selezionato la cartella di output."""
         if not self.file_list:
-            ReportDialog("Attenzione", "Devi aggiungere almeno un'immagine prima di convertire!", self).exec()
+            self.show_warning("Devi aggiungere almeno un'immagine prima di convertire!")
             return
         
         out_dir: Optional[str] = QFileDialog.getExistingDirectory(self, "Dove salvare?")

@@ -1,13 +1,10 @@
 """Test di copia/spostamento file (logica usata da Find_Document)."""
 
-import sys
 from pathlib import Path
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-
-from file_lister_core import transfer_files, unique_destination  # noqa: E402
+from file_lister_core import transfer_files, unique_destination
 
 
 def test_unique_destination_libera(tmp_path: Path) -> None:

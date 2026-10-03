@@ -8,10 +8,12 @@ import sys
 import os
 from typing import Optional
 from PyQt6.QtWidgets import (
-    QApplication, QWidget, QVBoxLayout, QPushButton, QLabel, QFileDialog, QMessageBox, QProgressBar
+    QApplication, QPushButton, QLabel, QFileDialog, QMessageBox, QProgressBar
 )
 from PyQt6.QtCore import QThread, pyqtSignal, Qt
 from pdf2docx import Converter
+
+from base_window import BaseWindow
 
 
 class ConversionWorker(QThread):
@@ -48,7 +50,7 @@ class ConversionWorker(QThread):
             self.error.emit(str(e))
 
 
-class ModernConverter(QWidget):
+class ModernConverter(BaseWindow):
     """
     Applicazione per convertire file PDF in Word.
     
@@ -56,39 +58,31 @@ class ModernConverter(QWidget):
         pdf_path (str): Percorso del file PDF selezionato.
     """
 
+    GUIDE_TEXT = (
+        "1. Premi 'Seleziona File PDF' e scegli il documento.\n"
+        "2. Premi 'Converti in Word'.\n\n"
+        "Il file .docx viene salvato nella stessa cartella del PDF, con lo stesso nome. "
+        "La fedeltà della conversione dipende dalla struttura del PDF "
+        "(i PDF scansionati non contengono testo modificabile)."
+    )
+
     def __init__(self) -> None:
         """Inizializza l'applicazione ModernConverter."""
-        super().__init__()
+        super().__init__('PDF to Word Converter Pro', min_width=400, min_height=500)
         self.pdf_path: Optional[str] = None
         self.worker: Optional[ConversionWorker] = None
         self.initUI()
 
     def initUI(self) -> None:
         """Inizializza l'interfaccia utente."""
-        # --- LOGICA DIMENSIONI E CENTRATURA ---
-        screen = QApplication.primaryScreen().availableGeometry()
-        width = int(screen.width() * 0.20)
-        height = int(screen.height() * 0.40)
-        min_w, min_h = 400, 500
-        self.setMinimumSize(min_w, min_h)
-        self.resize(max(width, min_w), max(height, min_h))
-        qr = self.frameGeometry()
-        qr.moveCenter(screen.center())
-        self.move(qr.topLeft())
+        layout = self.create_vertical_layout(margins=(32, 16, 32, 32), spacing=12)
+        layout.setMenuBar(self.create_menu_bar())
 
-        self.setWindowTitle('PDF to Word Converter Pro')
-        self.setStyleSheet("""
-            QWidget { background-color: #2b2b2b; color: #ffffff; font-family: 'Segoe UI'; }
-            QPushButton { background-color: #0078d4; border: none; color: white; padding: 10px; border-radius: 5px; font-weight: bold; }
-            QPushButton:hover { background-color: #1e90ff; }
-            QPushButton#exitBtn { background-color: #d32f2f; }
-            QProgressBar { border: 1px solid #555; border-radius: 5px; text-align: center; height: 25px; background-color: #444; }
-            QProgressBar::chunk { background-color: #00c853; border-radius: 4px; }
-        """)
-        
-        layout = QVBoxLayout()
-        layout.setContentsMargins(30, 30, 30, 30)
-        
+        title = QLabel("📝 PDF to Word")
+        title.setObjectName("title")
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(title)
+
         self.label = QLabel('Pronto per la conversione')
         self.label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.label)
@@ -97,10 +91,12 @@ class ModernConverter(QWidget):
         layout.addWidget(self.pbar)
         
         self.btn_select = QPushButton('📂 Seleziona File PDF')
+        self.btn_select.setObjectName("primaryBtn")
         self.btn_select.clicked.connect(self.select_file)
         layout.addWidget(self.btn_select)
         
         self.btn_convert = QPushButton('⚡ Converti in Word')
+        self.btn_convert.setObjectName("successBtn")
         self.btn_convert.setEnabled(False)
         self.btn_convert.clicked.connect(self.start_conversion)
         layout.addWidget(self.btn_convert)
@@ -135,8 +131,9 @@ class ModernConverter(QWidget):
         self.pbar.setRange(0, 0)  # Modalità indeterminata
         self.label.setText("Conversione in corso...")
         
-        # Genera il percorso di output
-        output_path: str = self.pdf_path.replace(".pdf", ".docx")
+        # Genera il percorso di output (splitext: gestisce anche '.PDF' e
+        # '.pdf' presente nel nome delle cartelle, prima la sorgente veniva sovrascritta)
+        output_path: str = os.path.splitext(self.pdf_path)[0] + ".docx"
         
         self.worker = ConversionWorker(self.pdf_path, output_path)
         self.worker.finished.connect(self.on_finished)

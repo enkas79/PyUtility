@@ -211,6 +211,16 @@ class WatermarkApp(BaseWindow):
         output_folder (str): Cartella di output selezionata.
     """
 
+    GUIDE_TEXT = (
+        "1. Aggiungi le immagini da elaborare.\n"
+        "2. Scegli il tipo di watermark:\n"
+        "   - Testo: testo, dimensione font e colore;\n"
+        "   - Immagine: seleziona un logo (meglio PNG con trasparenza).\n"
+        "3. Imposta posizione e opacità (1%-100%).\n"
+        "4. Seleziona la cartella di output e premi il pulsante di avvio.\n\n"
+        "Le immagini originali non vengono modificate."
+    )
+
     def __init__(self) -> None:
         """Inizializza l'applicazione Watermark."""
         super().__init__("Image Watermark", min_width=600, min_height=650)
@@ -223,7 +233,8 @@ class WatermarkApp(BaseWindow):
 
     def _init_ui(self) -> None:
         """Inizializza l'interfaccia utente."""
-        layout = self.create_vertical_layout(margins=(20, 20, 20, 20), spacing=15)
+        layout = self.create_vertical_layout(margins=(16, 8, 16, 16), spacing=16)
+        layout.setMenuBar(self.create_menu_bar())
         
         # Titolo
         title_label = QLabel("🎨 Image Watermark")
@@ -263,8 +274,8 @@ class WatermarkApp(BaseWindow):
         # Sezione parametri watermark (testo)
         self.text_frame = QFrame()
         text_layout = QVBoxLayout(self.text_frame)
-        text_layout.setContentsMargins(10, 10, 10, 10)
-        text_layout.setSpacing(10)
+        text_layout.setContentsMargins(8, 8, 8, 8)
+        text_layout.setSpacing(8)
         
         self.text_edit = QLineEdit()
         self.text_edit.setPlaceholderText("Inserisci il testo del watermark...")
@@ -284,7 +295,10 @@ class WatermarkApp(BaseWindow):
         self.btn_color.setObjectName("infoBtn")
         self.btn_color.clicked.connect(self._select_color)
         self.color_label = QLabel()
-        self.color_label.setStyleSheet("background-color: white; width: 30px; height: 20px; border: 1px solid #555;")
+        self.color_label.setObjectName("colorSwatch")
+        self.color_label.setFixedSize(32, 20)
+        # Unico stile inline ammesso: anteprima del colore scelto dall'utente
+        self.color_label.setStyleSheet("background-color: #ffffff;")
         color_layout.addWidget(self.btn_color)
         color_layout.addWidget(self.color_label)
         text_layout.addLayout(color_layout)
@@ -294,12 +308,12 @@ class WatermarkApp(BaseWindow):
         # Sezione parametri watermark (immagine)
         self.image_frame = QFrame()
         image_layout = QVBoxLayout(self.image_frame)
-        image_layout.setContentsMargins(10, 10, 10, 10)
-        image_layout.setSpacing(10)
+        image_layout.setContentsMargins(8, 8, 8, 8)
+        image_layout.setSpacing(8)
         
         image_layout.addWidget(QLabel("Seleziona immagine watermark:"))
         self.wm_image_label = QLabel("Nessuna immagine selezionata")
-        self.wm_image_label.setStyleSheet("color: #aaa;")
+        self.set_label_state(self.wm_image_label, "muted")
         btn_wm_image = QPushButton("📂 Seleziona Immagine Watermark")
         btn_wm_image.setObjectName("primaryBtn")
         btn_wm_image.clicked.connect(self._select_watermark_image)
@@ -336,7 +350,7 @@ class WatermarkApp(BaseWindow):
         layout.addWidget(QLabel("4. Cartella di output:"))
         output_layout = QHBoxLayout()
         self.output_label = QLabel("Nessuna cartella selezionata")
-        self.output_label.setStyleSheet("color: #aaa;")
+        self.set_label_state(self.output_label, "muted")
         btn_output = QPushButton("📂 Seleziona Cartella")
         btn_output.setObjectName("primaryBtn")
         btn_output.clicked.connect(self._select_output_folder)
@@ -390,9 +404,7 @@ class WatermarkApp(BaseWindow):
         )
         if color.isValid():
             self.font_color = color
-            self.color_label.setStyleSheet(
-                f"background-color: {color.name()}; width: 30px; height: 20px; border: 1px solid #555;"
-            )
+            self.color_label.setStyleSheet(f"background-color: {color.name()};")
 
     def _add_images(self) -> None:
         """Aggiunge immagini alla lista."""
@@ -424,7 +436,7 @@ class WatermarkApp(BaseWindow):
         if path:
             self.watermark_image = path
             self.wm_image_label.setText(os.path.basename(path))
-            self.wm_image_label.setStyleSheet("color: #00c853;")
+            self.set_label_state(self.wm_image_label, "ok")
 
     def _select_output_folder(self) -> None:
         """Seleziona la cartella di output."""
@@ -434,7 +446,7 @@ class WatermarkApp(BaseWindow):
         if folder:
             self.output_folder = folder
             self.output_label.setText(folder)
-            self.output_label.setStyleSheet("color: #00c853;")
+            self.set_label_state(self.output_label, "ok")
             self._check_ready()
 
     def _check_ready(self) -> None:

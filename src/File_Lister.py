@@ -24,7 +24,6 @@ from file_lister_core import (
     parse_extensions, parse_size,
 )
 from file_workers import ExportWorker, ScanWorker
-from styles import get_style
 
 # Preset rapidi per il filtro estensioni
 EXTENSION_PRESETS = {
@@ -41,10 +40,19 @@ class FileListerApp(BaseWindow):
     """Finestra per generare, filtrare ed esportare l'elenco dei file di una cartella."""
 
     COLUMNS = ["Nome", "Estensione", "Dimensione", "Ultima modifica", "Percorso relativo"]
+    GUIDE_TEXT = (
+        "1. Scegli la cartella da analizzare.\n"
+        "2. (Opzionale) Indica le estensioni separate da spazio, virgola o punto e virgola, "
+        "oppure scegli un preset. Vuoto = tutte.\n"
+        "3. (Opzionale) Imposta dimensione minima e/o massima: 0 = nessun limite. "
+        "I limiti sono inclusivi.\n"
+        "4. Premi 'Crea lista'. Puoi interrompere la scansione in qualsiasi momento.\n"
+        "5. Clicca sulle intestazioni per ordinare, poi esporta in CSV (apribile con Excel) "
+        "o TXT, oppure copia i percorsi negli appunti."
+    )
 
     def __init__(self) -> None:
         super().__init__("Lista File Cartella", min_width=820, min_height=600)
-        self.setStyleSheet(get_style("secondary"))
         self.entries: List[FileEntry] = []
         self.total_size: int = 0
         self.scan_worker: Optional[ScanWorker] = None
@@ -55,7 +63,7 @@ class FileListerApp(BaseWindow):
     # ---------------------------------------------------------------- UI
     def _init_ui(self) -> None:
         layout = self.create_vertical_layout(margins=(16, 8, 16, 16), spacing=12)
-        layout.setMenuBar(self._create_menu())
+        layout.setMenuBar(self.create_menu_bar())
 
         title = QLabel("📋 Lista File Cartella")
         title.setObjectName("title")
@@ -155,9 +163,8 @@ class FileListerApp(BaseWindow):
 
         self.setLayout(layout)
 
-    def _create_menu(self) -> QMenuBar:
-        """Barra dei menu: File (esportazioni) e Aiuto (guida)."""
-        menubar = QMenuBar(self)
+    def add_custom_menus(self, menubar: QMenuBar) -> None:
+        """Menu File (esportazioni); il menu Aiuto è aggiunto da BaseWindow."""
         file_menu = menubar.addMenu("&File")
         self.act_csv = QAction("Esporta CSV...", self)
         self.act_csv.triggered.connect(lambda: self._export("csv"))
@@ -168,12 +175,6 @@ class FileListerApp(BaseWindow):
         file_menu.addActions([self.act_csv, self.act_txt])
         file_menu.addSeparator()
         file_menu.addAction(act_close)
-
-        help_menu = menubar.addMenu("&Aiuto")
-        act_help = QAction("Guida", self)
-        act_help.triggered.connect(self._show_help)
-        help_menu.addAction(act_help)
-        return menubar
 
     @staticmethod
     def _size_inputs(grid: QGridLayout, row: int, col: int,
@@ -309,20 +310,6 @@ class FileListerApp(BaseWindow):
     def _copy_to_clipboard(self) -> None:
         QApplication.clipboard().setText("\n".join(e.path for e in self.entries))
         self.status_label.setText(f"📑 {len(self.entries)} percorsi copiati negli appunti.")
-
-    # ------------------------------------------------------------ varie
-    def _show_help(self) -> None:
-        self.show_info(
-            "1. Scegli la cartella da analizzare.\n"
-            "2. (Opzionale) Indica le estensioni separate da spazio, virgola o punto e virgola, "
-            "oppure scegli un preset. Vuoto = tutte.\n"
-            "3. (Opzionale) Imposta dimensione minima e/o massima: 0 = nessun limite. "
-            "I limiti sono inclusivi.\n"
-            "4. Premi 'Crea lista'. Puoi interrompere la scansione in qualsiasi momento.\n"
-            "5. Clicca sulle intestazioni per ordinare, poi esporta in CSV (apribile con Excel) "
-            "o TXT, oppure copia i percorsi negli appunti.",
-            "Guida - Lista File",
-        )
 
     def closeEvent(self, event) -> None:  # noqa: N802 - firma Qt
         """Interrompe la scansione in corso prima di chiudere la finestra."""
