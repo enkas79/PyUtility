@@ -145,6 +145,16 @@ class PDFSplitterApp(BaseWindow):
         output_folder (str): Cartella di output selezionata.
     """
 
+    GUIDE_TEXT = (
+        "1. Seleziona il file PDF da dividere.\n"
+        "2. Scegli la modalità:\n"
+        "   - Pagine singole: un file per ogni pagina;\n"
+        "   - Intervallo di pagine: estrae le pagine indicate in un unico file;\n"
+        "   - N pagine per file: divide il PDF in blocchi di N pagine.\n"
+        "3. Seleziona la cartella di output e avvia la divisione.\n\n"
+        "Il PDF originale non viene modificato."
+    )
+
     def __init__(self) -> None:
         """Inizializza l'applicazione PDFSplitter."""
         super().__init__("PDF Splitter", min_width=500, min_height=550)
@@ -155,7 +165,8 @@ class PDFSplitterApp(BaseWindow):
 
     def _init_ui(self) -> None:
         """Inizializza l'interfaccia utente."""
-        layout = self.create_vertical_layout(margins=(20, 20, 20, 20), spacing=15)
+        layout = self.create_vertical_layout(margins=(16, 8, 16, 16), spacing=16)
+        layout.setMenuBar(self.create_menu_bar())
         
         # Titolo
         title_label = QLabel("✂️ PDF Splitter")
@@ -172,7 +183,7 @@ class PDFSplitterApp(BaseWindow):
         layout.addWidget(QLabel("1. Seleziona il file PDF:"))
         file_layout = QHBoxLayout()
         self.file_label = QLabel("Nessun file selezionato")
-        self.file_label.setStyleSheet("color: #aaa;")
+        self.set_label_state(self.file_label, "muted")
         btn_select = QPushButton("📂 Seleziona PDF")
         btn_select.setObjectName("primaryBtn")
         btn_select.clicked.connect(self._select_pdf)
@@ -219,7 +230,7 @@ class PDFSplitterApp(BaseWindow):
         layout.addWidget(QLabel("3. Cartella di output:"))
         output_layout = QHBoxLayout()
         self.output_label = QLabel("Nessuna cartella selezionata")
-        self.output_label.setStyleSheet("color: #aaa;")
+        self.set_label_state(self.output_label, "muted")
         btn_output = QPushButton("📂 Seleziona Cartella")
         btn_output.setObjectName("primaryBtn")
         btn_output.clicked.connect(self._select_output_folder)
@@ -296,7 +307,7 @@ class PDFSplitterApp(BaseWindow):
         if path:
             self.pdf_path = path
             self.file_label.setText(os.path.basename(path))
-            self.file_label.setStyleSheet("color: #00c853;")
+            self.set_label_state(self.file_label, "ok")
             self._check_ready()
 
     def _select_output_folder(self) -> None:
@@ -307,7 +318,7 @@ class PDFSplitterApp(BaseWindow):
         if folder:
             self.output_folder = folder
             self.output_label.setText(folder)
-            self.output_label.setStyleSheet("color: #00c853;")
+            self.set_label_state(self.output_label, "ok")
             self._check_ready()
 
     def _check_ready(self) -> None:

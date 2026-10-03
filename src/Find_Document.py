@@ -11,17 +11,15 @@ import sys
 from typing import List, Optional, Set
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QAction
 from PyQt6.QtWidgets import (
     QAbstractItemView, QApplication, QCheckBox, QComboBox, QFileDialog, QFrame,
-    QHBoxLayout, QHeaderView, QLabel, QLineEdit, QMenuBar, QMessageBox,
+    QHBoxLayout, QHeaderView, QLabel, QLineEdit, QMessageBox,
     QProgressBar, QPushButton, QTableWidget, QTableWidgetItem,
 )
 
 from base_window import BaseWindow, SortableTableItem
 from file_lister_core import FileEntry, FileListOptions, format_size, parse_extensions
 from file_workers import ScanWorker, TransferWorker
-from styles import get_style
 
 # Voci predefinite del filtro estensione (il campo è comunque editabile)
 EXTENSION_CHOICES = ["Tutte", ".pdf", ".docx", ".xlsx", ".txt", ".jpg", ".png"]
@@ -32,10 +30,18 @@ class FileManagerApp(BaseWindow):
     """Ricerca file per estensione/parola chiave e copia o sposta i risultati."""
 
     COLUMNS = ["Nome File", "Dimensione", "Percorso Completo"]
+    GUIDE_TEXT = (
+        "1. Scegli la cartella in cui cercare.\n"
+        "2. Scegli o digita le estensioni (es. 'pdf, docx'; 'Tutte' = nessun filtro) "
+        "e, se vuoi, una parola chiave contenuta nel nome.\n"
+        "3. Premi 'Cerca' (o Invio nel campo parola chiave).\n"
+        "4. Seleziona i file nella tabella, indica la destinazione e premi COPIA o SPOSTA.\n\n"
+        "I file omonimi nella destinazione non vengono sovrascritti: "
+        "viene aggiunto un suffisso ' (1)', ' (2)', ..."
+    )
 
     def __init__(self) -> None:
         super().__init__("Gestore File Avanzato", min_width=720, min_height=600)
-        self.setStyleSheet(get_style("secondary"))
         self.scan_worker: Optional[ScanWorker] = None
         self.transfer_worker: Optional[TransferWorker] = None
         self.found_count: int = 0
@@ -45,7 +51,7 @@ class FileManagerApp(BaseWindow):
     # ---------------------------------------------------------------- UI
     def _init_ui(self) -> None:
         layout = self.create_vertical_layout(margins=(16, 8, 16, 16), spacing=12)
-        layout.setMenuBar(self._create_menu())
+        layout.setMenuBar(self.create_menu_bar())
 
         title = QLabel("🔍 Ricerca/Gestione Documenti")
         title.setObjectName("title")
@@ -134,15 +140,6 @@ class FileManagerApp(BaseWindow):
         layout.addWidget(action_box)
 
         self.setLayout(layout)
-
-    def _create_menu(self) -> QMenuBar:
-        """Barra dei menu con la guida del tool."""
-        menubar = QMenuBar(self)
-        help_menu = menubar.addMenu("&Aiuto")
-        act_help = QAction("Guida", self)
-        act_help.triggered.connect(self._show_help)
-        help_menu.addAction(act_help)
-        return menubar
 
     def _select_folder(self, line_edit: QLineEdit) -> None:
         folder = QFileDialog.getExistingDirectory(self, "Seleziona cartella", line_edit.text())
@@ -264,18 +261,6 @@ class FileManagerApp(BaseWindow):
         for worker in (self.scan_worker, self.transfer_worker):
             if worker is not None and worker.isRunning():
                 worker.stop()
-
-    def _show_help(self) -> None:
-        self.show_info(
-            "1. Scegli la cartella in cui cercare.\n"
-            "2. Scegli o digita le estensioni (es. 'pdf, docx'; 'Tutte' = nessun filtro) "
-            "e, se vuoi, una parola chiave contenuta nel nome.\n"
-            "3. Premi 'Cerca' (o Invio nel campo parola chiave).\n"
-            "4. Seleziona i file nella tabella, indica la destinazione e premi COPIA o SPOSTA.\n\n"
-            "I file omonimi nella destinazione non vengono sovrascritti: "
-            "viene aggiunto un suffisso ' (1)', ' (2)', ...",
-            "Guida - Ricerca Documenti",
-        )
 
     def closeEvent(self, event) -> None:  # noqa: N802 - firma Qt
         """Ferma i thread in corso prima di chiudere la finestra."""

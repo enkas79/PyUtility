@@ -9,15 +9,15 @@ import os
 from typing import Optional, List
 
 from PyQt6.QtWidgets import (
-    QApplication, QWidget, QVBoxLayout, QHBoxLayout,
+    QApplication, QHBoxLayout,
     QPushButton, QLabel, QFileDialog, QMessageBox,
-    QProgressBar, QListWidget, QRadioButton, QButtonGroup,
+    QProgressBar, QListWidget, QListWidgetItem, QRadioButton, QButtonGroup,
     QAbstractItemView, QFrame
 )
 from PyQt6.QtCore import QThread, pyqtSignal, Qt
 from PIL import Image
 
-from base_window import get_app_version
+from base_window import BaseWindow
 
 
 class ImageMergeWorker(QThread):
@@ -88,7 +88,7 @@ class ImageMergeWorker(QThread):
                 img.close()
 
 
-class ImageMergerApp(QWidget):
+class ImageMergerApp(BaseWindow):
     """
     Interfaccia grafica (UI) per l'applicazione di unione delle immagini JPEG.
     
@@ -96,56 +96,24 @@ class ImageMergerApp(QWidget):
         file_list (List[str]): Lista dei percorsi delle immagini selezionate.
     """
 
+    GUIDE_TEXT = (
+        "<b>Come usare lo strumento:</b><ul>"
+        "<li>Usa 'Aggiungi JPEG' per inserire i file.</li>"
+        "<li>Trascina i file nella lista per riordinarli. L'ordine della lista sarà l'ordine finale.</li>"
+        "<li>Scegli se incollare le immagini in Verticale o Orizzontale.</li>"
+        "<li>Premi 'UNISCI IMMAGINI' e scegli dove salvare.</li></ul>"
+    )
+
     def __init__(self) -> None:
-        super().__init__()
+        super().__init__('Image Merger (Unione JPEG)', min_width=448, min_height=552)
         self.file_list: List[str] = []
         self.worker: Optional[ImageMergeWorker] = None
         self.init_ui()
 
     def init_ui(self) -> None:
         """Configura la geometria, lo stile e il layout principale."""
-        screen = QApplication.primaryScreen().availableGeometry()
-        width = int(screen.width() * 0.20)
-        height = int(screen.height() * 0.40)
-        min_w, min_h = 450, 550
-        self.setMinimumSize(min_w, min_h)
-        self.resize(max(width, min_w), max(height, min_h))
-        qr = self.frameGeometry()
-        qr.moveCenter(screen.center())
-        self.move(qr.topLeft())
-
-        self.setWindowTitle('Image Merger (Unione JPEG)')
-        self.setStyleSheet("""
-            QWidget { background-color: #2b2b2b; color: #ffffff; font-family: 'Segoe UI', sans-serif; }
-            QListWidget { background-color: #1e1e1e; border: 1px solid #444; border-radius: 4px; padding: 5px; }
-            QPushButton { background-color: #444; padding: 8px; border-radius: 4px; font-weight: bold; border: none; }
-            QPushButton:hover { background-color: #555; }
-            QPushButton#addBtn { background-color: #0078d4; }
-            QPushButton#mergeBtn { background-color: #00c853; font-size: 14px; }
-            QPushButton#exitBtn { background-color: #d32f2f; } 
-            QPushButton#exitBtn:hover { background-color: #ff5252; }
-            QPushButton#infoBtn, QPushButton#helpBtn { background-color: #333; color: #aaa; border: 1px solid #555;}
-            QPushButton#infoBtn:hover, QPushButton#helpBtn:hover { color: #fff; background-color: #444; }
-            QProgressBar { border: 1px solid #444; border-radius: 5px; text-align: center; }
-            QProgressBar::chunk { background-color: #00c853; }
-        """)
-
-        layout = QVBoxLayout()
-        layout.setSpacing(12)
-        layout.setContentsMargins(20, 20, 20, 20)
-
-        # Top Bar (Info e Help)
-        top_bar = QHBoxLayout()
-        btn_info = QPushButton("ℹ️ Info")
-        btn_info.setObjectName("infoBtn")
-        btn_info.clicked.connect(self.show_info)
-        btn_help = QPushButton("📖 Guida")
-        btn_help.setObjectName("helpBtn")
-        btn_help.clicked.connect(self.show_help)
-        top_bar.addWidget(btn_info)
-        top_bar.addWidget(btn_help)
-        top_bar.addStretch()
-        layout.addLayout(top_bar)
+        layout = self.create_vertical_layout(margins=(16, 8, 16, 16), spacing=12)
+        layout.setMenuBar(self.create_menu_bar())
 
         # Sezione Immagini
         layout.addWidget(QLabel("1. Immagini da unire (Ordine di visualizzazione):"))
@@ -154,6 +122,7 @@ class ImageMergerApp(QWidget):
         self.btn_add.setObjectName("addBtn")
         self.btn_add.clicked.connect(self.add_images)
         self.btn_clear = QPushButton("🗑️ Svuota")
+        self.btn_clear.setObjectName("clearBtn")
         self.btn_clear.clicked.connect(self.clear_list)
         btn_layout.addWidget(self.btn_add)
         btn_layout.addWidget(self.btn_clear)
@@ -166,7 +135,6 @@ class ImageMergerApp(QWidget):
 
         # Direzione Unione
         dir_frame = QFrame()
-        dir_frame.setStyleSheet("background-color: #333; border-radius: 6px; padding: 5px;")
         dir_layout = QHBoxLayout(dir_frame)
         dir_layout.addWidget(QLabel("Direzione:"))
         self.radio_vert = QRadioButton("Verticale (Dall'alto al basso)")
@@ -204,26 +172,6 @@ class ImageMergerApp(QWidget):
 
         self.setLayout(layout)
 
-    def show_info(self) -> None:
-        """Mostra la finestra di informazioni sull'applicazione."""
-        QMessageBox.about(
-            self, "Info Applicazione",
-            "<b>Image Merger</b><br>"
-            f"Versione: {get_app_version()}<br>"
-            "Autore: Enrico Martini"
-        )
-
-    def show_help(self) -> None:
-        """Mostra la guida all'uso dell'applicazione."""
-        QMessageBox.information(
-            self, "Guida",
-            "<b>Come usare lo strumento:</b><ul>"
-            "<li>Usa 'Aggiungi JPEG' per inserire i file.</li>"
-            "<li>Trascina i file nella lista per riordinarli. L'ordine della lista sarà l'ordine finale.</li>"
-            "<li>Scegli se incollare le immagini in Verticale o Orizzontale.</li>"
-            "<li>Premi 'UNISCI IMMAGINI' e scegli dove salvare.</li></ul>"
-        )
-
     def add_images(self) -> None:
         """Aggiunge nuove immagini alla lista e aggiorna la UI."""
         files: List[str] = QFileDialog.getOpenFileNames(
@@ -233,7 +181,10 @@ class ImageMergerApp(QWidget):
             for f in files:
                 if f not in self.file_list:
                     self.file_list.append(f)
-                    self.list_widget.addItem(os.path.basename(f))
+                    item = QListWidgetItem(os.path.basename(f))
+                    item.setData(Qt.ItemDataRole.UserRole, f)
+                    item.setToolTip(f)
+                    self.list_widget.addItem(item)
             self.status_label.setText(f"{len(self.file_list)} immagini in lista.")
 
     def clear_list(self) -> None:
@@ -254,15 +205,11 @@ class ImageMergerApp(QWidget):
         if not out_file:
             return
 
-        # Ricostruisco la lista in base all'ordine visuale nel QListWidget
-        ordered_files: List[str] = []
-        for index in range(self.list_widget.count()):
-            item_name: str = self.list_widget.item(index).text()
-            # Trovo il percorso completo corrispondente al nome del file
-            for f_path in self.file_list:
-                if os.path.basename(f_path) == item_name:
-                    ordered_files.append(f_path)
-                    break
+        # Ordine visuale del QListWidget (il percorso completo è nei dati dell'item)
+        ordered_files: List[str] = [
+            self.list_widget.item(i).data(Qt.ItemDataRole.UserRole)
+            for i in range(self.list_widget.count())
+        ]
 
         self.btn_merge.setEnabled(False)
         self.btn_add.setEnabled(False)

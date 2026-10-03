@@ -8,12 +8,14 @@ import sys
 import os
 from typing import Optional, List
 from PyQt6.QtWidgets import (
-    QApplication, QWidget, QVBoxLayout, QHBoxLayout,
+    QApplication, QHBoxLayout,
     QPushButton, QLabel, QFileDialog, QMessageBox,
     QProgressBar, QLineEdit
 )
-from PyQt6.QtCore import QThread, pyqtSignal
+from PyQt6.QtCore import QThread, Qt, pyqtSignal
 from PyPDF2 import PdfReader, PdfWriter
+
+from base_window import BaseWindow
 
 
 class MergeWorker(QThread):
@@ -85,7 +87,7 @@ class MergeWorker(QThread):
             self.error.emit(str(e))
 
 
-class PDFPlusPro(QWidget):
+class PDFPlusPro(BaseWindow):
     """
     Applicazione per unire file PDF.
     
@@ -93,43 +95,43 @@ class PDFPlusPro(QWidget):
         selected_files (List[str]): Lista dei file PDF selezionati.
     """
 
+    GUIDE_TEXT = (
+        "1. Aggiungi i PDF da unire con 'File' (selezione multipla) o 'Cartella' "
+        "(tutti i PDF contenuti).\n"
+        "2. Scegli la cartella di destinazione con 'Sfoglia'.\n"
+        "3. Premi 'UNISCI'.\n\n"
+        "Se il PDF risultante supera i 99 MB viene diviso automaticamente in più file.\n"
+        "'Reset' svuota la coda dei file."
+    )
+
     def __init__(self) -> None:
         """Inizializza l'applicazione PDFPlusPro."""
-        super().__init__()
+        super().__init__('PDF Plus', min_width=400, min_height=500)
         self.selected_files: List[str] = []
         self.worker: Optional[MergeWorker] = None
         self.initUI()
 
     def initUI(self) -> None:
         """Inizializza l'interfaccia utente."""
-        # --- LOGICA DIMENSIONI E CENTRATURA ---
-        screen = QApplication.primaryScreen().availableGeometry()
-        width = int(screen.width() * 0.20)
-        height = int(screen.height() * 0.40)
-        min_w, min_h = 400, 500
-        self.setMinimumSize(min_w, min_h)
-        self.resize(max(width, min_w), max(height, min_h))
-        qr = self.frameGeometry()
-        qr.moveCenter(screen.center())
-        self.move(qr.topLeft())
+        layout = self.create_vertical_layout(margins=(16, 8, 16, 16), spacing=12)
+        layout.setMenuBar(self.create_menu_bar())
 
-        self.setWindowTitle('PDF Plus')
-        self.setStyleSheet("""
-            QWidget { background-color: #1e1e1e; color: #e0e0e0; font-family: 'Segoe UI'; }
-            QPushButton { background-color: #0078d4; border-radius: 4px; padding: 8px; font-weight: bold; }
-            QPushButton#resetBtn { background-color: #555; }
-            QPushButton#exitBtn { background-color: #c62828; }
-            QProgressBar { border: 1px solid #444; border-radius: 5px; text-align: center; }
-            QProgressBar::chunk { background-color: #00c853; }
-        """)
-        
-        layout = QVBoxLayout()
-        
+        title = QLabel("📄 PDF Plus")
+        title.setObjectName("title")
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(title)
+        subtitle = QLabel("Unisci più PDF in un unico documento")
+        subtitle.setObjectName("subtitle")
+        subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(subtitle)
+
         # Pulsanti per aggiungere file/cartelle
         input_btns = QHBoxLayout()
         btn_add = QPushButton("📄 File")
+        btn_add.setObjectName("primaryBtn")
         btn_add.clicked.connect(self.add_files)
         btn_fold = QPushButton("📂 Cartella")
+        btn_fold.setObjectName("primaryBtn")
         btn_fold.clicked.connect(self.add_folder)
         btn_res = QPushButton("🗑️ Reset")
         btn_res.setObjectName("resetBtn")
@@ -157,10 +159,12 @@ class PDFPlusPro(QWidget):
         layout.addWidget(self.status_label)
         self.pbar = QProgressBar()
         layout.addWidget(self.pbar)
-        
+        layout.addStretch()
+
         # Pulsanti azione
         btn_lay = QHBoxLayout()
         self.btn_run = QPushButton("🚀 UNISCI")
+        self.btn_run.setObjectName("successBtn")
         self.btn_run.clicked.connect(self.start_merge)
         btn_exit = QPushButton("Esci")
         btn_exit.setObjectName("exitBtn")

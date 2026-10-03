@@ -1,0 +1,8 @@
+[tool.pytest.ini_options]
+# I moduli dell'applicazione vivono in src/
+pythonpath = ["src"]
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py39"
+src = ["src", "tests"]

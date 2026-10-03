@@ -40,9 +40,9 @@ jobs:
         pip install PyQt6 Pillow PyPDF2 pdf2docx pyinstaller
 
     - name: Creazione EXE Unico (PyInstaller)
-      # I tool sono caricati dinamicamente da MainSuite (importlib): vanno dichiarati con --hidden-import
+      # I tool sono caricati dinamicamente da src/main.py (importlib): vanno dichiarati con --hidden-import
       run: |
-        pyinstaller --noconsole --onefile --name "PyUtilitySuite" --collect-all pdf2docx --hidden-import ConvImage --hidden-import MergeImage --hidden-import Image_Watermark --hidden-import Find_Document --hidden-import File_Lister --hidden-import PDF_plus --hidden-import PDF_Splitter --hidden-import PDFtoWord --icon icon.ico --add-data "version.txt;." --add-data "assets/icon.png;assets" MainSuite.py
+        pyinstaller --noconsole --onefile --name "PyUtilitySuite" --collect-all pdf2docx --hidden-import ConvImage --hidden-import MergeImage --hidden-import Image_Watermark --hidden-import Find_Document --hidden-import File_Lister --hidden-import PDF_plus --hidden-import PDF_Splitter --hidden-import PDFtoWord --icon icon.ico --paths src --add-data "version.txt;." --add-data "assets/icon.png;assets" src/main.py
 
     - name: Creazione script Inno Setup (.iss)
       run: |
@@ -122,9 +122,9 @@ jobs:
         pip install PyQt6 Pillow PyPDF2 pdf2docx pyinstaller
 
     - name: Creazione Eseguibile Linux (PyInstaller)
-      # I tool sono caricati dinamicamente da MainSuite (importlib): vanno dichiarati con --hidden-import
+      # I tool sono caricati dinamicamente da src/main.py (importlib): vanno dichiarati con --hidden-import
       run: |
-        pyinstaller --noconsole --onefile --name "PyUtilitySuite" --collect-all pdf2docx --hidden-import ConvImage --hidden-import MergeImage --hidden-import Image_Watermark --hidden-import Find_Document --hidden-import File_Lister --hidden-import PDF_plus --hidden-import PDF_Splitter --hidden-import PDFtoWord --add-data "version.txt:." --add-data "assets/icon.png:assets" MainSuite.py
+        pyinstaller --noconsole --onefile --name "PyUtilitySuite" --collect-all pdf2docx --hidden-import ConvImage --hidden-import MergeImage --hidden-import Image_Watermark --hidden-import Find_Document --hidden-import File_Lister --hidden-import PDF_plus --hidden-import PDF_Splitter --hidden-import PDFtoWord --paths src --add-data "version.txt:." --add-data "assets/icon.png:assets" src/main.py
 
     - name: Impacchettamento Debian (.deb)
       run: |

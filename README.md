@@ -4,7 +4,7 @@ Una collezione completa di strumenti di utilità sviluppati in Python con interf
 
 👤 **Autore e Versione**
 - **Autore:** Enrico Martini
-- **Versione Corrente:** 1.4.0
+- **Versione Corrente:** 1.5.0
 
 🚀 **Funzionalità Incluse**
 La suite integra **otto** strumenti principali, accessibili da un unico hub centrale:
@@ -78,10 +78,34 @@ pip install PyQt6==6.6.1 Pillow==10.2.0 PyPDF2==3.0.1 pdf2docx==0.8.5 pyinstalle
 
 3. Avvia l'applicazione principale:
    ```bash
-   python MainSuite.py
+   python src/main.py
    ```
 
+4. Test e lint:
+   ```bash
+   pytest
+   ruff check . --fix
+   ```
+
+🗂️ **Struttura del Progetto**
+- `src/main.py` – hub principale (entry point) e registro dei tool.
+- `src/<Tool>.py` – finestre dei singoli strumenti (ereditano da `BaseWindow`).
+- `src/base_window.py` – classe base: stile, menu **Aiuto** standard, logging.
+- `src/styles.py` – foglio di stile QSS centralizzato (palette WCAG AA).
+- `src/updater.py` / `src/update_manager.py` – autoupdate (logica / thread e dialoghi Qt).
+- `src/file_lister_core.py`, `src/file_workers.py` – logica e worker condivisi.
+- `tests/` – suite `pytest`; `version.txt` – versione corrente (trigger della build).
+
 ---
+
+📝 **Novità nella Versione 1.5.0**
+- **Aggiornamento automatico**: all'avvio (e da *Aiuto > Controlla Aggiornamenti*) la suite verifica le GitHub Releases, mostra il changelog, scarica l'installer in background e avvia l'installazione.
+- **Menu Aiuto uniforme** in tutte le finestre: Guida (F1), Controlla Aggiornamenti, Informazioni (autore e versione).
+- **Stile unificato**: tutti i tool usano il foglio di stile centralizzato; palette con contrasto WCAG AA e spaziature su griglia 4/8 px.
+- Codice spostato in `src/` (avvio: `python src/main.py`); workflow rinominato in `build-installers.yml`.
+- Log salvato nella cartella dati dell'utente (prima: crash se la cartella corrente non era scrivibile).
+- **PDF to Word**: un file `.PDF` (maiuscolo) non viene più sovrascritto dal `.docx`.
+- **Image Merger**: ordine corretto anche con file omonimi in cartelle diverse.
 
 📝 **Novità nella Versione 1.4.0**
 - Nuova **icona** dell'applicazione (finestre, eseguibile Windows, installer e pacchetto Linux). Sorgente vettoriale in `assets/icon.svg`, rigenerabile con `python tools/build_icons.py`.
