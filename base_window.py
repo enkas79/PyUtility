@@ -8,10 +8,8 @@ Fornisce funzionalità comuni come centratura, stile CSS, gestione errori e logg
 import os
 import sys
 import logging
-from typing import Optional, List
-from PyQt6.QtWidgets import QWidget, QMessageBox, QVBoxLayout, QApplication
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QFont
+from typing import Optional
+from PyQt6.QtWidgets import QWidget, QMessageBox, QVBoxLayout, QApplication, QTableWidgetItem
 
 
 # Configura il logging globale per l'applicazione
@@ -22,6 +20,15 @@ logging.basicConfig(
     encoding='utf-8'
 )
 logger = logging.getLogger(__name__)
+
+
+def resource_path(relative_path: str) -> str:
+    """
+    Restituisce il percorso assoluto di una risorsa del progetto, valido sia
+    in sviluppo sia nell'eseguibile PyInstaller (cartella temporanea _MEIPASS).
+    """
+    base_dir = getattr(sys, '_MEIPASS', os.path.dirname(os.path.abspath(__file__)))
+    return os.path.join(base_dir, relative_path)
 
 
 def get_app_version(default: str = "0.0.0") -> str:
@@ -35,14 +42,25 @@ def get_app_version(default: str = "0.0.0") -> str:
     Returns:
         str: Numero di versione (es. "1.2.0").
     """
-    base_dir = getattr(sys, '_MEIPASS', os.path.dirname(os.path.abspath(__file__)))
-    version_path = os.path.join(base_dir, 'version.txt')
     try:
-        with open(version_path, 'r', encoding='utf-8') as f:
+        with open(resource_path('version.txt'), 'r', encoding='utf-8') as f:
             return f.read().strip()
     except OSError:
         logger.warning(f"Impossibile leggere version.txt, uso versione di default {default}")
         return default
+
+
+class SortableTableItem(QTableWidgetItem):
+    """Cella di tabella che ordina in base a una chiave numerica invece che al testo."""
+
+    def __init__(self, text: str, sort_key: float) -> None:
+        super().__init__(text)
+        self._sort_key = sort_key
+
+    def __lt__(self, other: QTableWidgetItem) -> bool:
+        if isinstance(other, SortableTableItem):
+            return self._sort_key < other._sort_key
+        return super().__lt__(other)
 
 
 class BaseWindow(QWidget):

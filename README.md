@@ -4,7 +4,7 @@ Una collezione completa di strumenti di utilità sviluppati in Python con interf
 
 👤 **Autore e Versione**
 - **Autore:** Enrico Martini
-- **Versione Corrente:** 1.3.0
+- **Versione Corrente:** 1.4.0
 
 🚀 **Funzionalità Incluse**
 La suite integra **otto** strumenti principali, accessibili da un unico hub centrale:
@@ -26,9 +26,9 @@ La suite integra **otto** strumenti principali, accessibili da un unico hub cent
    - **Opacità Regolabile:** Controlla la trasparenza del watermark (1%-100%).
 
 4. 🔍 **Ricerca & Gestione Documenti**
-   - **Ricerca Mirata:** Filtra per estensione (PDF, DOCX, XLSX, ecc.) e parole chiave.
-   - **Azioni Rapide:** Permette di copiare o spostare i file trovati verso una cartella di destinazione specifica direttamente dall'interfaccia.
-   - **Multithreading:** La ricerca avviene in background per non bloccare l'interfaccia.
+   - **Ricerca Mirata:** Filtra per una o più estensioni (PDF, DOCX, XLSX, ecc.) e parole chiave, con o senza sottocartelle.
+   - **Azioni Rapide:** Copia o sposta i file trovati verso una cartella di destinazione, con barra di avanzamento; i file omonimi non vengono mai sovrascritti.
+   - **Multithreading:** Ricerca e copia/spostamento avvengono in background e possono essere interrotte.
 
 5. 📋 **Lista File Cartella** *(Nuovo in v1.3.0)*
    - **Elenco File:** Genera la lista dei file di una cartella (con o senza sottocartelle).
@@ -82,6 +82,12 @@ pip install PyQt6==6.6.1 Pillow==10.2.0 PyPDF2==3.0.1 pdf2docx==0.8.5 pyinstalle
    ```
 
 ---
+
+📝 **Novità nella Versione 1.4.0**
+- Nuova **icona** dell'applicazione (finestre, eseguibile Windows, installer e pacchetto Linux). Sorgente vettoriale in `assets/icon.svg`, rigenerabile con `python tools/build_icons.py`.
+- **Ricerca Documenti** riscritta sul motore condiviso di Lista File: copia/sposta in background, nessuna sovrascrittura, ricerca interrompibile, tabella ordinabile per dimensione.
+- **Image Watermark**: corretto il watermark di testo (incompatibile con Pillow 10) e l'opacità; output salvato con estensione `.png` coerente.
+- Corretto l'avvio stand-alone di Image Watermark e PDF Splitter.
 
 📝 **Novità nella Versione 1.3.0**
 - Nuovo tool **Lista File Cartella** con filtri per estensione e dimensione ed export CSV/TXT.

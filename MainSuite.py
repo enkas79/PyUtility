@@ -1,5 +1,6 @@
 import importlib
 import json
+import os
 import sys
 import urllib.request
 from typing import Dict, List, Tuple
@@ -7,10 +8,10 @@ from typing import Dict, List, Tuple
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                              QPushButton, QLabel, QMessageBox)
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, QUrl
-from PyQt6.QtGui import QAction, QDesktopServices
+from PyQt6.QtGui import QAction, QDesktopServices, QIcon
 
 # Import moduli di base
-from base_window import get_app_version, logger
+from base_window import get_app_version, logger, resource_path
 from styles import get_style
 
 # --- CONFIGURAZIONE DINAMICA ---
@@ -242,6 +243,8 @@ class UtilitySuite(QMainWindow):
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
+    # Icona globale: ereditata da tutte le finestre dei tool
+    app.setWindowIcon(QIcon(resource_path(os.path.join("assets", "icon.png"))))
     suite = UtilitySuite()
     suite.show()
     sys.exit(app.exec())

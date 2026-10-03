@@ -6,7 +6,7 @@ Tool per unire più immagini in un'unica immagine (verticale o orizzontale).
 
 import sys
 import os
-from typing import Optional, List, Tuple
+from typing import Optional, List
 
 from PyQt6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout,

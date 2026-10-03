@@ -6,15 +6,14 @@ Tool per dividere un file PDF in pagine singole o intervalli personalizzati.
 
 import os
 import logging
-from typing import Optional, List
+from typing import Optional
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, 
-    QFileDialog, QMessageBox, QSpinBox, QComboBox, QProgressBar
+    QHBoxLayout, QPushButton, QLabel, 
+    QFileDialog, QSpinBox, QComboBox, QProgressBar
 )
 from PyQt6.QtCore import QThread, pyqtSignal, Qt
 from PyPDF2 import PdfReader, PdfWriter
 from base_window import BaseWindow
-from styles import get_style
 
 logger = logging.getLogger(__name__)
 
@@ -361,6 +360,7 @@ class PDFSplitterApp(BaseWindow):
 
 if __name__ == "__main__":
     import sys
+    from PyQt6.QtWidgets import QApplication
     app = QApplication(sys.argv)
     window = PDFSplitterApp()
     window.show()

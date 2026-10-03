@@ -26,3 +26,12 @@ def test_ogni_tool_dichiarato_come_hidden_import() -> None:
     for module in _tool_modules():
         # Una volta per il job Windows e una per il job Linux
         assert workflow.count(f"--hidden-import {module} ") == 2, module
+
+
+def test_icone_presenti_e_dichiarate_nel_workflow() -> None:
+    for rel in ("icon.ico", "assets/icon.png", "assets/icon.svg"):
+        assert (ROOT / rel).is_file(), rel
+    workflow = (ROOT / ".github" / "workflows" / "build.yml").read_text(encoding="utf-8")
+    assert "--icon icon.ico" in workflow
+    assert '--add-data "assets/icon.png;assets"' in workflow  # Windows
+    assert '--add-data "assets/icon.png:assets"' in workflow  # Linux
