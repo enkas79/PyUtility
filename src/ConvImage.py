@@ -5,18 +5,20 @@ Tool per convertire e ridimensionare immagini in batch.
 Supporta formati: JPG, PNG, WEBP, BMP, ICO, TIFF.
 """
 
-import sys
+import logging
 import os
-from typing import Optional, List, Dict
+import sys
+from typing import Optional, List
 from PyQt6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QLabel, QFileDialog, QProgressBar, QListWidget, QComboBox, QFrame,
     QSpinBox, QDialog
 )
 from PyQt6.QtCore import QThread, pyqtSignal, Qt
-from PIL import Image
-
 from base_window import BaseWindow
+from image_core import convert_image
+
+logger = logging.getLogger(__name__)
 
 
 class ReportDialog(QDialog):
@@ -83,6 +85,7 @@ class ConversionWorker(QThread):
             output_folder (str): Cartella di output per i file convertiti.
             target_format (str): Formato di output (es. "JPG", "PNG").
             resize_mode (int): Modalità di ridimensionamento:
+                (costanti RESIZE_* di image_core)
                 - 0: Mantieni originale
                 - 1: Percentuale (%)
                 - 2: Larghezza fissa (px)
@@ -97,74 +100,24 @@ class ConversionWorker(QThread):
         self.resize_value = resize_value
 
     def run(self) -> None:
-        """Esegue la conversione e il ridimensionamento delle immagini."""
+        """Esegue la conversione e il ridimensionamento delle immagini (logica in image_core)."""
         total: int = len(self.file_list)
         errors: int = 0
-        
-        # Mappatura dei formati PIL
-        ext_map: Dict[str, str] = {
-            'JPG': 'JPEG', 'JPEG': 'JPEG', 'PNG': 'PNG', 
-            'WEBP': 'WEBP', 'BMP': 'BMP', 'ICO': 'ICO', 'TIFF': 'TIFF'
-        }
-        pil_format: str = ext_map.get(self.target_format, 'PNG')
-        
         for i, file_path in enumerate(self.file_list):
             filename: str = os.path.basename(file_path)
             self.status_signal.emit(f"Elaborazione: {filename}")
-            
             try:
-                with Image.open(file_path) as img:
-                    # Converti immagini palette a RGBA
-                    if img.mode == 'P':
-                        img = img.convert('RGBA')
-                    
-                    # Applica ridimensionamento se richiesto
-                    if self.resize_mode > 0:
-                        w, h = img.size
-                        new_w, new_h = w, h
-                        
-                        if self.resize_mode == 1:  # Percentuale
-                            factor = self.resize_value / 100.0
-                            new_w, new_h = int(w * factor), int(h * factor)
-                        elif self.resize_mode == 2:  # Larghezza fissa
-                            ratio = self.resize_value / float(w)
-                            new_w, new_h = self.resize_value, int(h * ratio)
-                        elif self.resize_mode == 3:  # Altezza fissa
-                            ratio = self.resize_value / float(h)
-                            new_h, new_w = self.resize_value, int(w * ratio)
-                        
-                        if new_w > 0 and new_h > 0:
-                            img = img.resize((new_w, new_h), Image.Resampling.LANCZOS)
-                    
-                    # Gestione formati che non supportano RGBA
-                    if pil_format in ['JPEG', 'BMP']:
-                        if img.mode in ('RGBA', 'LA'):
-                            bg = Image.new('RGB', img.size, (255, 255, 255))
-                            bg.paste(img, mask=img.split()[-1])
-                            img = bg
-                        else:
-                            img = img.convert('RGB')
-                    else:
-                        if img.mode not in ('RGB', 'RGBA', 'L'):
-                            img = img.convert('RGBA')
-                    
-                    # Salva l'immagine
-                    new_filename: str = f"{os.path.splitext(filename)[0]}.{self.target_format.lower()}"
-                    output_path: str = os.path.join(self.output_folder, new_filename)
-                    
-                    if pil_format in ['JPEG', 'WEBP']:
-                        img.save(output_path, pil_format, quality=90)
-                    else:
-                        img.save(output_path, pil_format)
-                        
-            except Exception as e:
+                convert_image(file_path, self.output_folder, self.target_format,
+                              self.resize_mode, self.resize_value)
+            except Exception as e:  # noqa: BLE001 - confine del thread: nessun crash (es. DecompressionBombError)
                 errors += 1
-                self.status_signal.emit(f"Errore in {filename}: {str(e)}")
-            
+                logger.warning("Conversione fallita per %s: %s", file_path, e)
+                self.status_signal.emit(f"Errore in {filename}: {e}")
             self.progress_signal.emit(int(((i + 1) / total) * 100))
-        
+
         self.finished_signal.emit(
-            f"Totale file elaborati: {total}\nSuccessi: {total - errors}\nErrori riscontrati: {errors}"
+            f"Totale file elaborati: {total}\nSuccessi: {total - errors}\nErrori riscontrati: {errors}\n\n"
+            "I file omonimi esistenti non vengono sovrascritti (suffisso ' (1)', ' (2)', ...)."
         )
 
 

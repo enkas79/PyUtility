@@ -19,8 +19,9 @@ from updater import (
     ReleaseAsset,
     ReleaseInfo,
     UpdateCancelled,
-    download_asset,
+    download_verified,
     fetch_latest_release,
+    find_checksum_asset,
     is_newer,
     launch_installer,
     select_asset,
@@ -48,23 +49,24 @@ class UpdateCheckWorker(QThread):
 
 
 class DownloadWorker(QThread):
-    """Scarica l'installer in background con progresso e annullamento."""
+    """Scarica e verifica (SHA-256) l'installer in background, con progresso e annullamento."""
     progress = pyqtSignal(int, int)  # (byte scaricati, totale)
     done = pyqtSignal(str)           # percorso del file
     failed = pyqtSignal(str)
     cancelled = pyqtSignal()
 
-    def __init__(self, asset: ReleaseAsset, dest_dir: str) -> None:
+    def __init__(self, asset: ReleaseAsset, checksum_asset: ReleaseAsset, dest_dir: str) -> None:
         super().__init__()
         self.asset = asset
+        self.checksum_asset = checksum_asset
         self.dest_dir = dest_dir
         self._stop = False
 
     def run(self) -> None:
         try:
-            path = download_asset(self.asset, self.dest_dir,
-                                  on_progress=self.progress.emit,
-                                  should_stop=lambda: self._stop)
+            path = download_verified(self.asset, self.checksum_asset, self.dest_dir,
+                                     on_progress=self.progress.emit,
+                                     should_stop=lambda: self._stop)
             self.done.emit(path)
         except UpdateCancelled:
             self.cancelled.emit()
@@ -124,6 +126,10 @@ class UpdateController(QObject):
             return
 
         asset = select_asset(release)
+        checksum = find_checksum_asset(release, asset) if asset is not None else None
+        if checksum is None:
+            # Senza checksum pubblicato l'installer non è verificabile: niente installazione automatica
+            asset = None
         box = QMessageBox(self._parent)
         box.setIcon(QMessageBox.Icon.Information)
         box.setWindowTitle("Aggiornamento Disponibile")
@@ -132,21 +138,21 @@ class UpdateController(QObject):
         if asset is not None:
             box.setInformativeText("Vuoi scaricarla e installarla ora?")
         else:
-            box.setInformativeText("Installer non disponibile per questo sistema: "
-                                   "vuoi aprire la pagina di download?")
+            box.setInformativeText("Installazione automatica non disponibile per questo sistema "
+                                   "(installer o checksum assente): vuoi aprire la pagina di download?")
         box.setDetailedText(release.changelog or "Nessuna nota di rilascio.")
         box.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
         box.setDefaultButton(QMessageBox.StandardButton.Yes)
         if box.exec() != QMessageBox.StandardButton.Yes:
             return
 
-        if asset is None:
+        if asset is None or checksum is None:
             QDesktopServices.openUrl(QUrl(release.html_url or FALLBACK_DOWNLOAD_URL))
             return
-        self._start_download(asset)
+        self._start_download(asset, checksum)
 
     # ------------------------------------------------------------ download
-    def _start_download(self, asset: ReleaseAsset) -> None:
+    def _start_download(self, asset: ReleaseAsset, checksum: ReleaseAsset) -> None:
         dest_dir = os.path.join(user_data_dir(), "updates")
         if not _is_writable(dest_dir):
             dest_dir = os.path.join(tempfile.gettempdir(), "PyUtilitySuite_updates")
@@ -158,7 +164,7 @@ class UpdateController(QObject):
         self._progress.setAutoClose(False)
         self._progress.setAutoReset(False)
 
-        self._download_worker = DownloadWorker(asset, dest_dir)
+        self._download_worker = DownloadWorker(asset, checksum, dest_dir)
         self._download_worker.progress.connect(self._on_download_progress)
         self._download_worker.done.connect(self._on_download_done)
         self._download_worker.failed.connect(self._on_download_failed)

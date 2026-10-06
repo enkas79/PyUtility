@@ -45,3 +45,24 @@ def test_entry_point_e_versione() -> None:
     assert workflow.count("--paths src") == 2
     assert "'version.txt'" in workflow  # trigger della build
     assert (ROOT / "version.txt").read_text(encoding="utf-8").strip().count(".") == 2
+
+
+def test_build_dipende_dai_test_e_usa_requirements() -> None:
+    workflow = WORKFLOW.read_text(encoding="utf-8")
+    assert "uses: ./.github/workflows/tests.yml" in workflow
+    assert workflow.count("needs: tests") == 2
+    assert workflow.count("pip install -r requirements.txt") == 2
+    assert "pip install PyQt6" not in workflow  # niente versioni libere
+
+
+def test_checksum_pubblicati_per_ogni_installer() -> None:
+    workflow = WORKFLOW.read_text(encoding="utf-8")
+    assert "_Setup_v${{ env.VERSION }}.exe.sha256" in workflow
+    assert "_amd64.deb.sha256" in workflow
+    assert "sha256sum" in workflow and "Get-FileHash -Algorithm SHA256" in workflow
+
+
+def test_requirements_tutte_fissate() -> None:
+    lines = [ln.strip() for ln in (ROOT / "requirements.txt").read_text(encoding="utf-8").splitlines()]
+    deps = [ln for ln in lines if ln and not ln.startswith("#")]
+    assert deps and all("==" in d for d in deps), deps
