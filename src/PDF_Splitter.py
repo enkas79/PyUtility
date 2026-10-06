@@ -12,8 +12,8 @@ from PyQt6.QtWidgets import (
     QFileDialog, QSpinBox, QComboBox, QProgressBar
 )
 from PyQt6.QtCore import QThread, pyqtSignal, Qt
-from PyPDF2 import PdfReader, PdfWriter
 from base_window import BaseWindow
+from pdf_core import split_every, split_range, split_single
 
 logger = logging.getLogger(__name__)
 
@@ -60,80 +60,29 @@ class SplitWorker(QThread):
         self.pages_per_file = pages_per_file
 
     def run(self) -> None:
-        """Esegue lo split del PDF in base alla modalità selezionata."""
+        """Esegue lo split del PDF in base alla modalità selezionata (logica in pdf_core)."""
+        def report(done: int, total: int) -> None:
+            self.progress_signal.emit(int(done * 100 / total))
+
         try:
-            reader = PdfReader(self.pdf_path)
-            total_pages = len(reader.pages)
-            
             if self.split_mode == "single":
-                # Divide ogni pagina in un file separato
-                for i, page in enumerate(reader.pages):
-                    writer = PdfWriter()
-                    writer.add_page(page)
-                    output_path = os.path.join(
-                        self.output_folder,
-                        f"{os.path.splitext(os.path.basename(self.pdf_path))[0]}_pagina_{i+1}.pdf"
-                    )
-                    with open(output_path, "wb") as f:
-                        writer.write(f)
-                    self.progress_signal.emit(int(((i + 1) / total_pages) * 100))
-                
-                self.finished_signal.emit(
-                    f"Split completato: {total_pages} pagine divise in file singoli."
-                )
-            
+                created = split_single(self.pdf_path, self.output_folder, on_progress=report)
+                message = f"Split completato: {len(created)} pagine divise in file singoli."
             elif self.split_mode == "range":
-                # Estrae un intervallo di pagine
-                start = max(1, self.start_page) - 1
-                end = min(self.end_page, total_pages)
-                
-                if start >= end:
-                    self.error_signal.emit("Intervallo di pagine non valido.")
-                    return
-                
-                writer = PdfWriter()
-                for i in range(start, end):
-                    writer.add_page(reader.pages[i])
-                
-                output_path = os.path.join(
-                    self.output_folder,
-                    f"{os.path.splitext(os.path.basename(self.pdf_path))[0]}_pagine_{start+1}-{end}.pdf"
-                )
-                with open(output_path, "wb") as f:
-                    writer.write(f)
-                
+                path = split_range(self.pdf_path, self.output_folder, self.start_page, self.end_page)
                 self.progress_signal.emit(100)
-                self.finished_signal.emit(
-                    f"Split completato: pagine {start+1}-{end} estratte in un file."
-                )
-            
+                message = f"Split completato: pagine estratte in {os.path.basename(path)}."
             elif self.split_mode == "custom":
-                # Divide in file con N pagine ciascuno
-                writer = PdfWriter()
-                file_count = 1
-                
-                for i, page in enumerate(reader.pages):
-                    writer.add_page(page)
-                    
-                    if (i + 1) % self.pages_per_file == 0 or i == total_pages - 1:
-                        output_path = os.path.join(
-                            self.output_folder,
-                            f"{os.path.splitext(os.path.basename(self.pdf_path))[0]}_parte_{file_count}.pdf"
-                        )
-                        with open(output_path, "wb") as f:
-                            writer.write(f)
-                        writer = PdfWriter()
-                        file_count += 1
-                    
-                    self.progress_signal.emit(int(((i + 1) / total_pages) * 100))
-                
-                self.finished_signal.emit(
-                    f"Split completato: {file_count - 1} file creati con {self.pages_per_file} pagine ciascuno."
-                )
-            
-        except Exception as e:
-            logger.error(f"Errore durante lo split del PDF: {str(e)}", exc_info=True)
-            self.error_signal.emit(f"Errore durante lo split: {str(e)}")
+                created = split_every(self.pdf_path, self.output_folder, self.pages_per_file,
+                                      on_progress=report)
+                message = (f"Split completato: {len(created)} file creati "
+                           f"(fino a {self.pages_per_file} pagine ciascuno).")
+            else:
+                raise ValueError(f"Modalità di split sconosciuta: {self.split_mode}")
+            self.finished_signal.emit(message)
+        except Exception as e:  # noqa: BLE001 - confine del thread: nessun crash (es. DecompressionBombError)
+            logger.error("Errore durante lo split del PDF: %s", e, exc_info=True)
+            self.error_signal.emit(f"Errore durante lo split: {e}")
 
 
 class PDFSplitterApp(BaseWindow):
@@ -152,7 +101,7 @@ class PDFSplitterApp(BaseWindow):
         "   - Intervallo di pagine: estrae le pagine indicate in un unico file;\n"
         "   - N pagine per file: divide il PDF in blocchi di N pagine.\n"
         "3. Seleziona la cartella di output e avvia la divisione.\n\n"
-        "Il PDF originale non viene modificato."
+        "Il PDF originale non viene modificato e i file esistenti non vengono sovrascritti."
     )
 
     def __init__(self) -> None:

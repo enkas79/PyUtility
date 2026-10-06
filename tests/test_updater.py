@@ -1,5 +1,6 @@
 """Test della logica di aggiornamento (modulo updater, nessuna dipendenza Qt)."""
 
+import hashlib
 import io
 import json
 from pathlib import Path
@@ -8,11 +9,16 @@ from typing import List, Tuple
 import pytest
 
 from updater import (
+    ChecksumMismatch,
     ReleaseAsset,
     ReleaseInfo,
     UpdateCancelled,
     build_install_command,
     download_asset,
+    download_verified,
+    find_checksum_asset,
+    parse_checksum,
+    sha256_file,
     is_newer,
     parse_release,
     parse_version,
@@ -27,6 +33,8 @@ RELEASE_JSON = {
         {"name": "PyUtilitySuite.exe", "browser_download_url": "https://x/PyUtilitySuite.exe", "size": 10},
         {"name": "PyUtilitySuite_Setup_v1.6.0.exe", "browser_download_url": "https://x/setup.exe", "size": 20},
         {"name": "PyUtilitySuite_v1.6.0_amd64.deb", "browser_download_url": "https://x/suite.deb", "size": 30},
+        {"name": "PyUtilitySuite_v1.6.0_amd64.deb.sha256", "browser_download_url": "https://x/suite.deb.sha256",
+         "size": 1},
     ],
 }
 
@@ -84,6 +92,11 @@ def test_parse_release_senza_tag_solleva() -> None:
 def test_select_asset_per_piattaforma(platform: str, expected: str) -> None:
     asset = select_asset(parse_release(RELEASE_JSON), platform)
     assert asset is not None and asset.name == expected
+
+
+def test_select_asset_ignora_file_checksum() -> None:
+    asset = select_asset(parse_release(RELEASE_JSON), "linux")
+    assert asset is not None and not asset.name.endswith(".sha256")
 
 
 def test_select_asset_piattaforma_non_supportata() -> None:
@@ -157,3 +170,60 @@ def test_build_install_command_non_supportato() -> None:
 def test_release_json_serializzabile() -> None:
     # Garantisce che il fixture rispecchi un payload JSON reale
     assert parse_release(json.loads(json.dumps(RELEASE_JSON))).version == "1.6.0"
+
+
+# ------------------------------------------------------------ checksum
+DIGEST = hashlib.sha256(b"installer").hexdigest()
+
+
+def test_find_checksum_asset() -> None:
+    info = parse_release(RELEASE_JSON)
+    deb = select_asset(info, "linux")
+    setup = select_asset(info, "win32")
+    assert find_checksum_asset(info, deb).name == "PyUtilitySuite_v1.6.0_amd64.deb.sha256"
+    assert find_checksum_asset(info, setup) is None
+
+
+@pytest.mark.parametrize("text", [
+    f"{DIGEST}  setup.exe\n",
+    f"{DIGEST.upper()} *setup.exe",
+    f"{DIGEST}",
+    f"altro_hash  altro.exe\n{DIGEST}  setup.exe\n",
+])
+def test_parse_checksum_formati(text: str) -> None:
+    assert parse_checksum(text, "setup.exe") == DIGEST
+
+
+@pytest.mark.parametrize("text", ["", "non-esadecimale  setup.exe", f"{DIGEST}  altro.exe"])
+def test_parse_checksum_non_valido(text: str) -> None:
+    with pytest.raises(ValueError):
+        parse_checksum(text, "setup.exe")
+
+
+def test_sha256_file(tmp_path: Path) -> None:
+    f = tmp_path / "a.bin"
+    f.write_bytes(b"installer")
+    assert sha256_file(str(f)) == DIGEST
+
+
+def _url_opener(payloads: dict):
+    def opener(request, timeout: float = 0):  # noqa: ANN001 - firma di urlopen
+        return _FakeResponse(payloads[request.full_url])
+    return opener
+
+
+def test_download_verified_ok(tmp_path: Path) -> None:
+    asset = ReleaseAsset("setup.exe", "https://x/setup.exe", 9)
+    check = ReleaseAsset("setup.exe.sha256", "https://x/setup.exe.sha256", 80)
+    opener = _url_opener({asset.url: b"installer", check.url: f"{DIGEST}  setup.exe".encode()})
+    path = download_verified(asset, check, str(tmp_path), opener=opener)
+    assert Path(path).read_bytes() == b"installer"
+
+
+def test_download_verified_hash_errato_elimina_file(tmp_path: Path) -> None:
+    asset = ReleaseAsset("setup.exe", "https://x/setup.exe", 9)
+    check = ReleaseAsset("setup.exe.sha256", "https://x/setup.exe.sha256", 80)
+    opener = _url_opener({asset.url: b"manomesso", check.url: f"{DIGEST}  setup.exe".encode()})
+    with pytest.raises(ChecksumMismatch):
+        download_verified(asset, check, str(tmp_path), opener=opener)
+    assert list(tmp_path.iterdir()) == []

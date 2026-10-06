@@ -11,9 +11,8 @@ from PyQt6.QtWidgets import (
     QApplication, QPushButton, QLabel, QFileDialog, QMessageBox, QProgressBar
 )
 from PyQt6.QtCore import QThread, pyqtSignal, Qt
-from pdf2docx import Converter
-
 from base_window import BaseWindow
+from pdf_core import convert_pdf_to_docx, docx_output_path
 
 
 class ConversionWorker(QThread):
@@ -21,10 +20,11 @@ class ConversionWorker(QThread):
     Thread per eseguire la conversione da PDF a Word in background.
     
     Attributes:
-        finished (pyqtSignal): Segnale emesso al completamento con il percorso del file generato.
+        done (pyqtSignal): Segnale emesso al completamento con il percorso del file generato
+            (nome diverso da QThread.finished per non oscurarlo).
         error (pyqtSignal): Segnale emesso in caso di errore.
     """
-    finished = pyqtSignal(str)
+    done = pyqtSignal(str)
     error = pyqtSignal(str)
 
     def __init__(self, pdf_path: str, docx_path: str) -> None:
@@ -40,13 +40,10 @@ class ConversionWorker(QThread):
         self.docx_path: str = docx_path
 
     def run(self) -> None:
-        """Esegue la conversione da PDF a Word."""
+        """Esegue la conversione da PDF a Word (logica in pdf_core)."""
         try:
-            cv = Converter(self.pdf_path)
-            cv.convert(self.docx_path)
-            cv.close()
-            self.finished.emit(self.docx_path)
-        except Exception as e:
+            self.done.emit(convert_pdf_to_docx(self.pdf_path, self.docx_path))
+        except Exception as e:  # noqa: BLE001 - pdf2docx/PyMuPDF sollevano tipi eterogenei
             self.error.emit(str(e))
 
 
@@ -131,12 +128,11 @@ class ModernConverter(BaseWindow):
         self.pbar.setRange(0, 0)  # Modalità indeterminata
         self.label.setText("Conversione in corso...")
         
-        # Genera il percorso di output (splitext: gestisce anche '.PDF' e
-        # '.pdf' presente nel nome delle cartelle, prima la sorgente veniva sovrascritta)
-        output_path: str = os.path.splitext(self.pdf_path)[0] + ".docx"
+        # Percorso .docx libero accanto al PDF (nessuna sovrascrittura)
+        output_path: str = docx_output_path(self.pdf_path)
         
         self.worker = ConversionWorker(self.pdf_path, output_path)
-        self.worker.finished.connect(self.on_finished)
+        self.worker.done.connect(self.on_finished)
         self.worker.error.connect(self.on_error)
         self.worker.start()
 

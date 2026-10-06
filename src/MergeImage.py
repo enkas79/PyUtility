@@ -15,9 +15,9 @@ from PyQt6.QtWidgets import (
     QAbstractItemView, QFrame
 )
 from PyQt6.QtCore import QThread, pyqtSignal, Qt
-from PIL import Image
 
 from base_window import BaseWindow
+from image_core import merge_images
 
 
 class ImageMergeWorker(QThread):
@@ -49,43 +49,13 @@ class ImageMergeWorker(QThread):
         self.is_vertical: bool = is_vertical
 
     def run(self) -> None:
-        """Esegue l'elaborazione e la fusione delle immagini."""
-        images: List[Image.Image] = []
+        """Esegue la fusione delle immagini (logica in image_core)."""
         try:
-            images = [Image.open(p) for p in self.file_paths]
-            if not images:
-                raise ValueError("Nessuna immagine fornita per l'elaborazione.")
-
-            total_images: int = len(images)
-
-            if self.is_vertical:
-                max_width: int = max(img.width for img in images)
-                total_height: int = sum(img.height for img in images)
-                result: Image.Image = Image.new('RGB', (max_width, total_height), (255, 255, 255))
-                y_offset: int = 0
-                for i, img in enumerate(images):
-                    result.paste(img, (0, y_offset))
-                    y_offset += img.height
-                    self.progress_signal.emit(int(((i + 1) / total_images) * 100))
-            else:
-                total_width: int = sum(img.width for img in images)
-                max_height: int = max(img.height for img in images)
-                result = Image.new('RGB', (total_width, max_height), (255, 255, 255))
-                x_offset: int = 0
-                for i, img in enumerate(images):
-                    result.paste(img, (x_offset, 0))
-                    x_offset += img.width
-                    self.progress_signal.emit(int(((i + 1) / total_images) * 100))
-
-            result.save(self.output_path, "JPEG", quality=95)
+            merge_images(self.file_paths, self.output_path, self.is_vertical,
+                         on_progress=lambda done, total: self.progress_signal.emit(int(done * 100 / total)))
             self.finished_signal.emit(self.output_path)
-
-        except Exception as e:
-            self.error_signal.emit(f"Errore durante la fusione: {str(e)}")
-        finally:
-            # Assicura il rilascio delle risorse (file handlers)
-            for img in images:
-                img.close()
+        except Exception as e:  # noqa: BLE001 - confine del thread: nessun crash (es. DecompressionBombError)
+            self.error_signal.emit(f"Errore durante la fusione: {e}")
 
 
 class ImageMergerApp(BaseWindow):

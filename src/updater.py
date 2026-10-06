@@ -3,12 +3,15 @@ Updater
 =======
 Logica di business dell'autoupdate (nessuna dipendenza Qt):
 interrogazione delle GitHub Releases, confronto versioni, scelta
-dell'installer per la piattaforma, download e avvio dell'installazione.
+dell'installer per la piattaforma, download con verifica SHA-256 e avvio
+dell'installazione.
 I thread Qt che la usano sono in update_manager.
 """
 
+import hashlib
 import json
 import os
+import re
 import subprocess
 import sys
 import urllib.request
@@ -17,6 +20,9 @@ from typing import Callable, List, Optional, Tuple
 
 USER_AGENT = "PyUtilitySuite-Updater"
 CHUNK_SIZE = 64 * 1024
+CHECKSUM_SUFFIX = ".sha256"
+MAX_CHECKSUM_BYTES = 4096
+_SHA256_RE = re.compile(r"^([0-9a-fA-F]{64})(?:\s+\*?(.+))?$")
 
 ProgressCallback = Callable[[int, int], None]  # (byte scaricati, byte totali)
 StopCallback = Callable[[], bool]
@@ -24,6 +30,10 @@ StopCallback = Callable[[], bool]
 
 class UpdateCancelled(Exception):
     """Download interrotto su richiesta dell'utente."""
+
+
+class ChecksumMismatch(ValueError):
+    """L'hash SHA-256 del file scaricato non corrisponde a quello pubblicato."""
 
 
 @dataclass(frozen=True)
@@ -101,7 +111,7 @@ def fetch_latest_release(owner: str, repo: str, timeout: float = 10.0) -> Releas
 
 def select_asset(release: ReleaseInfo, platform: str = sys.platform) -> Optional[ReleaseAsset]:
     """Sceglie l'installer adatto alla piattaforma (None se non disponibile)."""
-    names = {a.name.lower(): a for a in release.assets}
+    names = {a.name.lower(): a for a in release.assets if not a.name.endswith(CHECKSUM_SUFFIX)}
     if platform.startswith("win"):
         for lower, asset in names.items():
             if "setup" in lower and lower.endswith(".exe"):
@@ -164,6 +174,72 @@ def download_asset(
             os.remove(part_path)
         raise
     return final_path
+
+
+# ------------------------------------------------------------ checksum
+def find_checksum_asset(release: ReleaseInfo, asset: ReleaseAsset) -> Optional[ReleaseAsset]:
+    """File '<installer>.sha256' pubblicato nella stessa release (None se assente)."""
+    target = asset.name + CHECKSUM_SUFFIX
+    return next((a for a in release.assets if a.name == target), None)
+
+
+def parse_checksum(text: str, filename: str) -> str:
+    """
+    Estrae l'hash SHA-256 per 'filename' da un file in formato sha256sum
+    ('<hash>  <nome>', '<hash> *<nome>') o contenente il solo hash.
+
+    Raises:
+        ValueError: hash assente o non valido.
+    """
+    for line in text.splitlines():
+        match = _SHA256_RE.match(line.strip())
+        if match and (match.group(2) is None or match.group(2).strip() == filename):
+            return match.group(1).lower()
+    raise ValueError(f"Checksum SHA-256 non trovato per {filename}")
+
+
+def sha256_file(path: str) -> str:
+    """Hash SHA-256 (esadecimale minuscolo) del file."""
+    digest = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(CHUNK_SIZE), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def fetch_text(url: str, opener: Callable = urllib.request.urlopen, timeout: float = 15.0) -> str:
+    """Scarica un piccolo file di testo (limite MAX_CHECKSUM_BYTES)."""
+    request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+    with opener(request, timeout=timeout) as response:
+        return response.read(MAX_CHECKSUM_BYTES).decode("utf-8", errors="replace")
+
+
+def download_verified(
+    asset: ReleaseAsset,
+    checksum_asset: ReleaseAsset,
+    dest_dir: str,
+    on_progress: Optional[ProgressCallback] = None,
+    should_stop: Optional[StopCallback] = None,
+    opener: Callable = urllib.request.urlopen,
+) -> str:
+    """
+    Scarica l'installer e ne verifica l'hash con il file .sha256 della release;
+    in caso di discrepanza il file viene eliminato e non deve essere eseguito.
+
+    Raises:
+        ChecksumMismatch: hash non corrispondente.
+        UpdateCancelled, ValueError, OSError: come download_asset.
+    """
+    expected = parse_checksum(fetch_text(checksum_asset.url, opener=opener), asset.name)
+    path = download_asset(asset, dest_dir, on_progress=on_progress,
+                          should_stop=should_stop, opener=opener)
+    actual = sha256_file(path)
+    if actual != expected:
+        os.remove(path)
+        raise ChecksumMismatch(
+            f"Verifica di integrità fallita per {asset.name}: il file è stato eliminato.\n"
+            f"Atteso: {expected}\nOttenuto: {actual}")
+    return path
 
 
 # ------------------------------------------------------------ installazione

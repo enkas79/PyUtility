@@ -4,7 +4,7 @@ Una collezione completa di strumenti di utilità sviluppati in Python con interf
 
 👤 **Autore e Versione**
 - **Autore:** Enrico Martini
-- **Versione Corrente:** 1.5.0
+- **Versione Corrente:** 1.6.0
 
 🚀 **Funzionalità Incluse**
 La suite integra **otto** strumenti principali, accessibili da un unico hub centrale:
@@ -53,15 +53,11 @@ La suite integra **otto** strumenti principali, accessibili da un unico hub cent
 ---
 
 🛠️ **Requisiti Tecnici**
-Per eseguire la suite, è necessario installare le seguenti librerie Python:
+Serve **Python 3.10 o superiore**. Le versioni delle librerie (PyQt6, Pillow, PyPDF2, pdf2docx, PyMuPDF, PyInstaller) sono fissate in `requirements.txt`, usato anche dalla build CI:
 
 ```bash
-pip install -r requirements.txt
-```
-
-Oppure manualmente:
-```bash
-pip install PyQt6==6.6.1 Pillow==10.2.0 PyPDF2==3.0.1 pdf2docx==0.8.5 pyinstaller==6.0.0
+pip install -r requirements.txt        # esecuzione
+pip install -r requirements-dev.txt    # sviluppo: aggiunge pytest e ruff
 ```
 
 📦 **Installazione e Utilizzo**
@@ -81,8 +77,9 @@ pip install PyQt6==6.6.1 Pillow==10.2.0 PyPDF2==3.0.1 pdf2docx==0.8.5 pyinstalle
    python src/main.py
    ```
 
-4. Test e lint:
+4. Test e lint (eseguiti anche da GitHub Actions a ogni push, e prima di ogni build):
    ```bash
+   pip install -r requirements-dev.txt
    pytest
    ruff check . --fix
    ```
@@ -93,10 +90,19 @@ pip install PyQt6==6.6.1 Pillow==10.2.0 PyPDF2==3.0.1 pdf2docx==0.8.5 pyinstalle
 - `src/base_window.py` – classe base: stile, menu **Aiuto** standard, logging.
 - `src/styles.py` – foglio di stile QSS centralizzato (palette WCAG AA).
 - `src/updater.py` / `src/update_manager.py` – autoupdate (logica / thread e dialoghi Qt).
+- `src/image_core.py`, `src/pdf_core.py` – logica di immagini e PDF senza Qt (testata).
 - `src/file_lister_core.py`, `src/file_workers.py` – logica e worker condivisi.
 - `tests/` – suite `pytest`; `version.txt` – versione corrente (trigger della build).
 
 ---
+
+📝 **Novità nella Versione 1.6.0**
+- **Nessuna sovrascrittura**: Image Converter non sostituisce più l'originale (es. PNG → PNG nella stessa cartella) né i file omonimi; PDF Splitter, PDF Plus e PDF to Word aggiungono un suffisso ' (1)' invece di sovrascrivere.
+- **PDF Plus**: il riepilogo elenca i file creati; corretto un caso in cui un file 'NN - Main.pdf' già esistente veniva sovrascritto; messaggio chiaro per i PDF protetti da password.
+- **PDF to Word**: il convertitore viene chiuso anche in caso di errore.
+- **Aggiornamenti verificati**: l'installer scaricato viene controllato con il checksum SHA-256 pubblicato nella release; se non corrisponde viene eliminato e non eseguito.
+- **CI**: lint e test a ogni push; la build degli installer parte solo se passano e usa le versioni fissate in `requirements.txt` (che prima indicava una versione inesistente di pdf2docx).
+- Logica di immagini e PDF separata dall'interfaccia (`image_core.py`, `pdf_core.py`) e coperta da test.
 
 📝 **Novità nella Versione 1.5.0**
 - **Aggiornamento automatico**: all'avvio (e da *Aiuto > Controlla Aggiornamenti*) la suite verifica le GitHub Releases, mostra il changelog, scarica l'installer in background e avvia l'installazione.

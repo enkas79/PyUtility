@@ -13,28 +13,28 @@ from PyQt6.QtWidgets import (
     QProgressBar, QLineEdit
 )
 from PyQt6.QtCore import QThread, Qt, pyqtSignal
-from PyPDF2 import PdfReader, PdfWriter
 
 from base_window import BaseWindow
+from pdf_core import merge_pdfs
 
 
 class MergeWorker(QThread):
     """
-    Thread per eseguire il merge dei PDF in background.
-    
+    Thread per eseguire il merge dei PDF in background (logica in pdf_core).
+
     Attributes:
-        finished (pyqtSignal): Segnale emesso al completamento con il numero di file creati.
+        done (pyqtSignal): Emesso al completamento con la lista dei file creati.
         error (pyqtSignal): Segnale emesso in caso di errore.
         progress (pyqtSignal): Segnale per aggiornare lo stato.
     """
-    finished = pyqtSignal(int)
+    done = pyqtSignal(list)
     error = pyqtSignal(str)
     progress = pyqtSignal(str)
 
     def __init__(self, file_list: List[str], dest_path: str) -> None:
         """
         Inizializza il worker per il merge dei PDF.
-        
+
         Args:
             file_list (List[str]): Lista dei percorsi dei file PDF da unire.
             dest_path (str): Cartella di destinazione per i file uniti.
@@ -46,44 +46,12 @@ class MergeWorker(QThread):
     def run(self) -> None:
         """Esegue il merge dei PDF con split automatico se >99MB."""
         try:
-            max_size: int = 99 * 1024 * 1024  # 99MB
-            current_size: int = 0
-            counter: int = 1
-            merger: PdfWriter = PdfWriter()
-            count: int = 0
-            
-            # Trova il primo nome file disponibile
-            while os.path.exists(os.path.join(self.dest_path, f"{counter:02d} - Main.pdf")):
-                counter += 1
-            
-            for path in self.file_list:
-                self.progress.emit(f"Unendo: {os.path.basename(path)}")
-                reader: PdfReader = PdfReader(path)
-                size: int = os.path.getsize(path)
-                
-                # Se supera il limite, salva il file corrente e ne inizia uno nuovo
-                if current_size + size > max_size and len(merger.pages) > 0:
-                    with open(os.path.join(self.dest_path, f"{counter:02d} - Main.pdf"), "wb") as f:
-                        merger.write(f)
-                    counter += 1
-                    count += 1
-                    merger = PdfWriter()
-                    current_size = 0
-                
-                # Aggiungi le pagine del file corrente
-                for page in reader.pages:
-                    merger.add_page(page)
-                current_size += size
-            
-            # Salva l'ultimo file se ci sono pagine
-            if len(merger.pages) > 0:
-                with open(os.path.join(self.dest_path, f"{counter:02d} - Main.pdf"), "wb") as f:
-                    merger.write(f)
-                count += 1
-            
-            self.finished.emit(count)
-            
-        except Exception as e:
+            created = merge_pdfs(
+                self.file_list, self.dest_path,
+                on_progress=lambda n, total: self.progress.emit(f"Uniti {n} di {total} file..."),
+            )
+            self.done.emit(created)
+        except Exception as e:  # noqa: BLE001 - confine del thread: nessun crash (es. DecompressionBombError)
             self.error.emit(str(e))
 
 
@@ -100,7 +68,9 @@ class PDFPlusPro(BaseWindow):
         "(tutti i PDF contenuti).\n"
         "2. Scegli la cartella di destinazione con 'Sfoglia'.\n"
         "3. Premi 'UNISCI'.\n\n"
-        "Se il PDF risultante supera i 99 MB viene diviso automaticamente in più file.\n"
+        "Se il PDF risultante supera i 99 MB viene diviso automaticamente in più file "
+        "(stima sulla dimensione dei sorgenti: un singolo PDF oltre i 99 MB resta intero).\n"
+        "I file creati si chiamano '01 - Main.pdf', '02 - Main.pdf', ... senza sovrascrivere quelli esistenti.\n"
         "'Reset' svuota la coda dei file."
     )
 
@@ -222,20 +192,24 @@ class PDFPlusPro(BaseWindow):
         
         self.worker = MergeWorker(self.selected_files, self.dst_edit.text())
         self.worker.progress.connect(self.status_label.setText)
-        self.worker.finished.connect(self.on_success)
+        self.worker.done.connect(self.on_success)
         self.worker.error.connect(self.on_error)
         self.worker.start()
 
-    def on_success(self, count: int) -> None:
+    def on_success(self, created: List[str]) -> None:
         """
         Slot eseguito al completamento del merge.
-        
+
         Args:
-            count (int): Numero di file PDF creati.
+            created (List[str]): Percorsi dei file PDF creati.
         """
         self.pbar.setRange(0, 100)
         self.pbar.setValue(100)
-        QMessageBox.information(self, "Fatto!", f"Creati {count} PDF.")
+        self.status_label.setText(f"Completato: {len(created)} file creati.")
+        names = "\n".join(f"• {os.path.basename(p)}" for p in created)
+        QMessageBox.information(
+            self, "Fatto!",
+            f"Creati {len(created)} PDF in:\n{self.dst_edit.text()}\n\n{names}")
         self.btn_run.setEnabled(True)
 
     def on_error(self, error: str) -> None:
