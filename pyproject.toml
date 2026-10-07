@@ -6,3 +6,8 @@ testpaths = ["tests"]
 [tool.ruff]
 target-version = "py39"
 src = ["src", "tests"]
+
+[tool.ruff.lint]
+# Regole esplicite: un aggiornamento di ruff (es. 0.16, default ampliati)
+# non deve cambiare silenziosamente il lint del progetto.
+select = ["E4", "E7", "E9", "F"]
